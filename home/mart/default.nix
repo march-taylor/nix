@@ -4,6 +4,7 @@
     ./programs.nix
     ./discord.nix
     ./niri.nix
+    ./niri-fixes.nix
     ./inir.nix
   ];
 
