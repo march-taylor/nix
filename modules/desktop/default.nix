@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ config, lib, pkgs, ... }:
 {
   imports = [ ./niri.nix ];
 
@@ -19,9 +19,10 @@
   services.printing.enable = true;
   programs.dconf.enable = true;
 
-  # GNOME Keyring is intentionally disabled. KeePassXC provides the
-  # org.freedesktop.secrets service from the Home Manager configuration.
-  services.gnome.gnome-keyring.enable = false;
+  # niri-flake enables GNOME Keyring by default. Force it off so KeePassXC is
+  # the only org.freedesktop.secrets provider in the user session.
+  services.gnome.gnome-keyring.enable = lib.mkForce false;
+  security.pam.services.greetd.enableGnomeKeyring = lib.mkForce false;
 
   fonts.packages = with pkgs; [
     nerd-fonts.jetbrains-mono
