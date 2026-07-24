@@ -1,6 +1,4 @@
 {
-  config,
-  lib,
   pkgs,
   settings,
   ...
@@ -57,14 +55,10 @@
     memoryPercent = 100;
   };
 
+  # ext4 on NVMe only needs periodic TRIM; there are no Btrfs scrub/snapshot jobs.
   services = {
     fstrim.enable = true;
     flatpak.enable = true;
-    btrfs.autoScrub = {
-      enable = true;
-      interval = "weekly";
-      fileSystems = [ "/" ];
-    };
   };
 
   programs = {
@@ -105,7 +99,7 @@
     lm_sensors
     smartmontools
     nvme-cli
-    btrfs-progs
+    e2fsprogs
     nix-output-monitor
   ];
 
