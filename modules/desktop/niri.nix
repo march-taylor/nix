@@ -128,7 +128,9 @@ EOF
   ++ optionalKde "syntax-highlighting"
   ++ optionalKde "xembedsniproxy"
   ++ optionalTop "darkly"
-  ++ optionalTop "qt6ct";
+  # qt6ct was moved out of the top-level package set. Referring to pkgs.qt6ct
+  # now intentionally throws a renamed-attribute error during Nix evaluation.
+  ++ [ pkgs.qt6Packages.qt6ct ];
 
   # Quickshell must be able to resolve these imports while loading shell.qml.
   # A missing org.kde.kirigami import produces only the generic top-level error
