@@ -21,6 +21,45 @@ let
       done
     '';
   });
+
+  niriConfigFragments = [
+    "10-input-and-cursor.kdl"
+    "20-layout-and-overview.kdl"
+    "30-window-rules.kdl"
+    "40-environment.kdl"
+    "50-startup.kdl"
+    "60-animations.kdl"
+    "70-binds.kdl"
+    "80-layer-rules.kdl"
+    "90-user-extra.kdl"
+  ];
+
+  # Embed the upstream modular config into one file. niri-flake validates this
+  # complete KDL document during the Nix build, so a broken or missing user
+  # config can no longer produce a session with no usable key bindings.
+  upstreamNiriConfig = lib.foldl' (
+    configText: fragment:
+    builtins.replaceStrings
+      [ ''include "config.d/${fragment}"'' ]
+      [ (builtins.readFile "${inputs.inir}/defaults/niri/config.d/${fragment}") ]
+      configText
+  ) (builtins.readFile "${inputs.inir}/defaults/niri/config.kdl") niriConfigFragments;
+
+  niriConfig = builtins.replaceStrings
+    [
+      ''layout "us"''
+      ''spawn "nautilus"''
+      ''spawn-at-startup "/usr/lib/mate-polkit/polkit-mate-authentication-agent-1"''
+    ]
+    [
+      ''
+        layout "us,ru"
+        options "grp:win_space_toggle"
+      ''
+      ''spawn "dolphin"''
+      ''// Polkit prompts are handled by iNiR's built-in iiPolkit panel.''
+    ]
+    upstreamNiriConfig;
 in
 {
   imports = [ inputs.inir.homeModules.inir ];
@@ -30,49 +69,28 @@ in
     package = patchedInir;
     configSymlink.enable = true;
     service.compositor = "niri";
-    extraPackages = [ config.programs.niri.package ];
+    extraPackages = [
+      config.programs.niri.package
+      pkgs.kitty
+      pkgs.kdePackages.dolphin
+      inputs.zen-browser.packages.${system}.default
+    ];
   };
 
-  # iNiR ships a complete modular Niri configuration. Do not let niri-flake
-  # generate a second config which would replace iNiR's binds and layer rules.
-  programs.niri.config = lib.mkForce null;
+  # Keep the compositor-specific dependency and also make the shell start when
+  # the graphical user session becomes active. Only Niri is installed here.
+  systemd.user.services.inir.Install.WantedBy =
+    lib.mkAfter [ "graphical-session.target" ];
 
-  # Package-managed iNiR deliberately does not run its Arch-oriented installer.
-  # Seed normal writable user files once, using the packaged defaults. Later
-  # changes made from iNiR or by the user remain mutable and are not overwritten.
-  home.activation.seedInirUserFiles = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    runtime="${patchedInir}/share/quickshell/inir"
-    niri_dir="${config.xdg.configHome}/niri"
-    marker="$niri_dir/.seeded-from-nix-v1"
+  programs.niri.config = lib.mkForce niriConfig;
 
-    if [ ! -e "$marker" ]; then
-      timestamp="$(${pkgs.coreutils}/bin/date +%Y%m%d-%H%M%S)"
-      backup_root="${config.home.homeDirectory}/inir-backup"
-
-      if [ -e "$niri_dir" ] || [ -L "$niri_dir" ]; then
-        ${pkgs.coreutils}/bin/mkdir -p "$backup_root"
-        ${pkgs.coreutils}/bin/cp -a "$niri_dir" "$backup_root/niri-$timestamp"
-      fi
-
-      ${pkgs.coreutils}/bin/rm -rf "$niri_dir"
-      ${pkgs.coreutils}/bin/mkdir -p "$niri_dir"
-      ${pkgs.coreutils}/bin/cp -R "$runtime/defaults/niri/." "$niri_dir/"
-      ${pkgs.coreutils}/bin/chmod -R u+rwX "$niri_dir"
-
-      # Keep the requested US/Russian layout, Dolphin and the NixOS-provided
-      # polkit agent while retaining the rest of iNiR's upstream defaults.
-      ${pkgs.gnused}/bin/sed -i \
-        -e 's/layout "us"/layout "us,ru"/' \
-        -e '/layout "us,ru"/a\            options "grp:win_space_toggle"' \
-        "$niri_dir/config.d/10-input-and-cursor.kdl"
-      ${pkgs.gnused}/bin/sed -i \
-        's/spawn "nautilus"/spawn "dolphin"/' \
-        "$niri_dir/config.d/70-binds.kdl"
-      ${pkgs.gnused}/bin/sed -i \
-        '/polkit-mate-authentication-agent-1/d' \
-        "$niri_dir/config.d/50-startup.kdl"
-
-      ${pkgs.coreutils}/bin/touch "$marker"
+  # Create only mutable state and preferences. The Niri KDL itself is owned by
+  # niri-flake and validated at build time.
+  home.activation.prepareInirUserState = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    # Remove leftovers from the previous one-shot config seeding implementation.
+    if [ -e "${config.xdg.configHome}/niri/.seeded-from-nix-v1" ]; then
+      ${pkgs.coreutils}/bin/rm -rf "${config.xdg.configHome}/niri/config.d"
+      ${pkgs.coreutils}/bin/rm -f "${config.xdg.configHome}/niri/.seeded-from-nix-v1"
     fi
 
     state_dir="${config.xdg.stateHome}/quickshell/user"
@@ -88,19 +106,30 @@ in
       printf '[]\n' > "$state_dir/notifications.json"
     fi
 
-    user_config_dir="${config.xdg.configHome}/illogical-impulse"
-    if [ ! -e "$user_config_dir/config.json" ]; then
-      for candidate in \
-        "$runtime/defaults/config.json" \
-        "$runtime/dots/.config/illogical-impulse/config.json"
-      do
-        if [ -f "$candidate" ]; then
-          ${pkgs.coreutils}/bin/mkdir -p "$user_config_dir"
-          ${pkgs.coreutils}/bin/cp "$candidate" "$user_config_dir/config.json"
-          ${pkgs.coreutils}/bin/chmod u+w "$user_config_dir/config.json"
-          break
-        fi
-      done
+    config_dir="${config.xdg.configHome}/illogical-impulse"
+    config_file="$config_dir/config.json"
+    ${pkgs.coreutils}/bin/mkdir -p "$config_dir"
+
+    if [ -s "$config_file" ] && ${pkgs.jq}/bin/jq empty "$config_file" >/dev/null 2>&1; then
+      tmp="$config_file.tmp"
+      ${pkgs.jq}/bin/jq '
+        .apps = (.apps // {})
+        | .apps.terminal = "kitty"
+        | .apps.browser = "zen"
+        | .apps.update = "kitty -e sudo nixos-rebuild switch --flake /etc/nixos#desktop --accept-flake-config"
+      ' "$config_file" > "$tmp"
+      ${pkgs.coreutils}/bin/mv "$tmp" "$config_file"
+    else
+      cat > "$config_file" <<'EOF'
+{
+  "apps": {
+    "terminal": "kitty",
+    "browser": "zen",
+    "update": "kitty -e sudo nixos-rebuild switch --flake /etc/nixos#desktop --accept-flake-config"
+  }
+}
+EOF
     fi
+    ${pkgs.coreutils}/bin/chmod u+rw "$config_file"
   '';
 }
