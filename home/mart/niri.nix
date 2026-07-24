@@ -30,7 +30,7 @@
 
     binds = {
       "Mod+Return".action.spawn = "kitty";
-      "Mod+E".action.spawn = "nautilus";
+      "Mod+E".action.spawn = "dolphin";
       "Mod+D".action.spawn = "fuzzel";
 
       "Mod+Space" = {
