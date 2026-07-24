@@ -1,7 +1,14 @@
 { pkgs, ... }:
 {
   hardware.enableRedistributableFirmware = true;
-  hardware.graphics.enable = true;
+
+  hardware.graphics = {
+    enable = true;
+    enable32Bit = true;
+    extraPackages = [
+      pkgs.rocmPackages.clr.icd
+    ];
+  };
 
   hardware.bluetooth = {
     enable = true;
@@ -21,4 +28,11 @@
   services.fwupd.enable = true;
   services.upower.enable = true;
   services.power-profiles-daemon.enable = true;
+
+  environment.systemPackages = with pkgs; [
+    vulkan-tools
+    libva-utils
+    mesa-demos
+    clinfo
+  ];
 }
