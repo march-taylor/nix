@@ -182,7 +182,7 @@ EOF
         while IFS= read -r qmldir; do
           module_dir="$(dirname "$qmldir")"
           case "$module_dir" in
-            */qml/*) relative="${module_dir#*/qml/}" ;;
+            */qml/*) relative="''${module_dir#*/qml/}" ;;
             *) continue ;;
           esac
 
