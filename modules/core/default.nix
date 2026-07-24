@@ -69,6 +69,13 @@
       enable = true;
       binfmt = true;
     };
+
+    # GUI proxy client backed by sing-box. TUN mode uses the capability-based
+    # NixOS wrapper rather than the less secure setuid fallback.
+    throne = {
+      enable = true;
+      tunMode.enable = true;
+    };
   };
 
   users.users.${settings.username} = {
