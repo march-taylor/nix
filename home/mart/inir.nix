@@ -54,7 +54,7 @@ let
     [
       ''
         layout "us,ru"
-        options "grp:win_space_toggle"
+        options "grp:alt_shift_toggle"
       ''
       ''spawn "dolphin"''
       ''// Polkit prompts are handled by iNiR's built-in iiPolkit panel.''
