@@ -18,6 +18,42 @@ let
     lib.optional
       (builtins.hasAttr "qt6" pkgs && builtins.hasAttr name pkgs.qt6)
       (builtins.getAttr name pkgs.qt6);
+  optionalPython = name:
+    lib.optional
+      (builtins.hasAttr name pkgs.python3Packages)
+      (builtins.getAttr name pkgs.python3Packages);
+
+  # Equivalent of upstream sdata/uv/requirements.in, built by Nix rather than
+  # downloaded into a mutable per-user venv.
+  inirPython = pkgs.python3.withPackages (_:
+    lib.concatLists (map optionalPython [
+      "click"
+      "evdev"
+      "kde-material-you-colors"
+      "loguru"
+      "material-color-utilities"
+      "materialyoucolor"
+      "numpy"
+      "opencv4"
+      "pillow"
+      "psutil"
+      "pycairo"
+      "pygobject3"
+      "tqdm"
+    ]));
+
+  # Several upstream scripts source $INIR_VENV/bin/activate before invoking
+  # Python. Provide that interface while keeping the actual environment in the
+  # immutable Nix store.
+  inirVenv = pkgs.runCommand "inir-python-venv" { } ''
+    mkdir -p "$out/bin"
+    ln -s ${inirPython}/bin/python "$out/bin/python"
+    ln -s ${inirPython}/bin/python3 "$out/bin/python3"
+    cat > "$out/bin/activate" <<EOF
+export VIRTUAL_ENV="$out"
+export PATH="${inirPython}/bin:\$PATH"
+EOF
+  '';
 
   # Direct translation of the dependency bundles used by upstream's normal
   # installer. Arch-only packages such as pacman-contrib are intentionally
@@ -35,7 +71,7 @@ let
     gnused
     jq
     procps
-    python3
+    inirPython
     ripgrep
     rsync
     systemd
@@ -80,11 +116,6 @@ let
     wtype
     xwayland-satellite
     ydotool
-
-    (python3.withPackages (pythonPackages: with pythonPackages; [
-      evdev
-      pillow
-    ]))
   ]
   ++ optionalTop "brightnessctl"
   ++ optionalTop "geoclue2"
@@ -164,7 +195,9 @@ let
       wrapProgram "$out/bin/inir" \
         --prefix QML_IMPORT_PATH : "${inirQmlPath}" \
         --prefix QML2_IMPORT_PATH : "${inirQmlPath}" \
-        --prefix QT_PLUGIN_PATH : "${inirQtPluginPath}"
+        --prefix QT_PLUGIN_PATH : "${inirQtPluginPath}" \
+        --set-default INIR_VENV "${inirVenv}" \
+        --set-default ILLOGICAL_IMPULSE_VIRTUAL_ENV "${inirVenv}"
     '';
   });
 in
@@ -180,12 +213,19 @@ in
     extraPackages = [ config.programs.niri.package ] ++ inirRuntimePackages;
   };
 
-  # Add the QML paths to the unit as well as to the launcher wrapper. The
-  # wrapper prefixes its own upstream paths, so these values are additive.
+  # Add the QML and Python environments to the unit as well as to the launcher
+  # wrapper. The wrapper prefixes its own upstream paths, so these are additive.
   systemd.user.services.inir.environment = {
     QML_IMPORT_PATH = inirQmlPath;
     QML2_IMPORT_PATH = inirQmlPath;
     QT_PLUGIN_PATH = inirQtPluginPath;
+    INIR_VENV = "${inirVenv}";
+    ILLOGICAL_IMPULSE_VIRTUAL_ENV = "${inirVenv}";
+  };
+
+  environment.sessionVariables = {
+    INIR_VENV = "${inirVenv}";
+    ILLOGICAL_IMPULSE_VIRTUAL_ENV = "${inirVenv}";
   };
 
   environment.systemPackages = inirRuntimePackages;
