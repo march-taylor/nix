@@ -1,12 +1,42 @@
-{ lib, pkgs, ... }:
+{
+  inputs,
+  lib,
+  pkgs,
+  ...
+}:
+let
+  inirSddmTheme = pkgs.runCommand "inir-ii-pixel-sddm-theme" { } ''
+    mkdir -p "$out/share/sddm/themes"
+    cp -R "${inputs.inir}/dots/sddm/pixel" "$out/share/sddm/themes/ii-pixel"
+  '';
+in
 {
   imports = [ ./niri.nix ];
+
+  # Use the mature X11 SDDM greeter. The previous experimental Wayland greeter
+  # did not inherit a valid XKB layout and displayed the bogus "zz" layout.
+  services.xserver = {
+    enable = true;
+    xkb = {
+      layout = "us,ru";
+      variant = "";
+      options = "grp:win_space_toggle";
+    };
+  };
 
   services.displayManager = {
     defaultSession = "niri";
     sddm = {
       enable = true;
-      wayland.enable = true;
+      wayland.enable = false;
+      theme = "ii-pixel";
+      extraPackages = with pkgs; [
+        qt6.qt5compat
+        qt6.qtdeclarative
+        qt6.qtimageformats
+        qt6.qtsvg
+      ];
+      settings.General.InputMethod = "";
     };
   };
 
@@ -31,11 +61,13 @@
     noto-fonts-color-emoji
   ];
 
-  environment.systemPackages = with pkgs; [
+  environment.systemPackages = [
+    inirSddmTheme
+  ] ++ (with pkgs; [
     gparted
     ntfs3g
     exfatprogs
-  ];
+  ]);
 
   environment.sessionVariables = {
     NIXOS_OZONE_WL = "1";
