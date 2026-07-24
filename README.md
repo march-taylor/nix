@@ -1,6 +1,6 @@
 # NixOS + Niri + iNiR
 
-Воспроизводимая конфигурация для текущего компьютера Mart:
+Воспроизводимая конфигурация для компьютера Mart:
 
 - Gigabyte B550M AORUS ELITE;
 - AMD Ryzen 5 5600;
@@ -9,7 +9,8 @@
 - 32 GiB RAM;
 - UEFI;
 - пользователь `mart`;
-- Niri + iNiR + Home Manager.
+- Niri + iNiR + Home Manager;
+- ext4 без Btrfs, сабволюмов и снапшотов.
 
 ## Важное предупреждение
 
@@ -36,12 +37,15 @@ USB-накопитель:
 - Niri;
 - iNiR из upstream `snowarch/iNiR`;
 - greetd/tuigreet;
+- Home Manager;
 - PipeWire;
 - NetworkManager;
 - Bluetooth;
-- GNOME Keyring;
 - Flatpak и AppImage support;
-- Home Manager.
+- Dolphin как основной файловый менеджер;
+- KeePassXC как менеджер паролей и `org.freedesktop.secrets` provider.
+
+GNOME Keyring намеренно отключён. KeePassXC запускается автоматически и предоставляет приложениям Secret Service через DBus.
 
 ### Приложения
 
@@ -55,7 +59,7 @@ USB-накопитель:
 - KeePassXC;
 - Pear Desktop — YouTube Music-клиент с поддержкой плагинов;
 - Kitty;
-- Nautilus;
+- Dolphin, Ark и KDE thumbnailers;
 - mpv, imv, FFmpeg, yt-dlp;
 - pavucontrol и Helvum;
 - GParted;
@@ -65,22 +69,37 @@ USB-накопитель:
 
 ## Разметка диска
 
-Disko создаёт GPT:
+Disko создаёт простую GPT-разметку:
 
 ```text
 /dev/nvme0n1
 ├── ESP       2 GiB, FAT32, /boot
-└── NixOS     оставшееся место, Btrfs
-    ├── @root       /
-    ├── @home       /home
-    ├── @nix        /nix
-    ├── @log        /var/log
-    └── @snapshots  /.snapshots
+└── NixOS     оставшееся место, ext4, /
 ```
 
-Btrfs монтируется с `compress=zstd:3`, `noatime`, `ssd` и `discard=async`.
+Отдельных разделов `/home`, `/nix` и swap нет. Используется сжатый zram размером до 100% RAM.
 
-Дискового swap-раздела нет. Используется сжатый zram размером до 100% RAM.
+Преимущества этой схемы:
+
+- обычный ext4 без Copy-on-Write;
+- простой ручной recovery из любого Linux Live ISO;
+- все пользовательские данные лежат на одном корневом разделе;
+- нет Btrfs-сабволюмов, scrub и snapshot tooling.
+
+Для ручного монтирования из Live ISO:
+
+```bash
+sudo mount /dev/disk/by-label/nixos /mnt
+sudo mkdir -p /mnt/boot
+sudo mount /dev/disk/by-partlabel/ESP /mnt/boot
+```
+
+Если второй путь не найден, посмотри точное имя EFI-раздела через:
+
+```bash
+lsblk -f
+sudo blkid
+```
 
 ## Установка с NixOS Graphical ISO
 
@@ -150,11 +169,10 @@ sudo bash ./install.sh
    ERASE /dev/nvme0n1
    ```
 
-5. Размечает и форматирует NVMe через Disko.
+5. Создаёт GPT, EFI и ext4 через Disko.
 6. Копирует репозиторий в `/mnt/etc/nixos`.
 7. Выполняет `nixos-install`.
-8. Просит установить пароль root.
-9. Просит установить пароль пользователя `mart`.
+8. Просит установить пароль пользователя `mart`.
 
 При любой ошибке оценки Nix диск ещё не изменяется.
 
@@ -176,9 +194,9 @@ reboot
 mart
 ```
 
-После входа должны автоматически запуститься Niri и iNiR.
+После входа должны автоматически запуститься Niri, iNiR и KeePassXC.
 
-Проверь:
+Проверь iNiR:
 
 ```bash
 systemctl --user status inir.service
@@ -193,6 +211,54 @@ vulkaninfo --summary
 glxinfo -B
 vainfo
 clinfo
+```
+
+## Первичная настройка KeePassXC
+
+KeePassXC уже настроен как Secret Service provider, а GNOME Keyring отключён.
+
+При первом запуске:
+
+1. Открой существующую `.kdbx` базу или создай новую.
+2. Открой `Database → Database Settings → Secret Service Integration`.
+3. Выбери отдельную группу, которую приложениям разрешено видеть через Secret Service.
+4. Для Zen установи расширение KeePassXC-Browser и разреши соединение в `Tools → Settings → Browser Integration`.
+
+Рекомендуется создать в базе отдельную группу, например:
+
+```text
+Secret Service
+```
+
+и хранить там только те записи, которые действительно должны быть доступны приложениям через `org.freedesktop.secrets`.
+
+Проверить DBus provider можно так:
+
+```bash
+busctl --user list | grep org.freedesktop.secrets
+```
+
+KeePassXC-конфиг создаётся как обычный изменяемый файл:
+
+```text
+~/.config/keepassxc/keepassxc.ini
+```
+
+Home Manager создаёт только первоначальный вариант файла и не перезаписывает последующие настройки из GUI.
+
+## Dolphin
+
+Dolphin установлен вместе с:
+
+- Ark для архивов;
+- KIO Admin;
+- KIO Extras;
+- thumbnails для видео, PDF и изображений.
+
+Он установлен обработчиком каталогов по умолчанию. Бинд:
+
+```text
+Mod+E → Dolphin
 ```
 
 ## После первого запуска
@@ -383,4 +449,4 @@ result/iso/
 - KeePass-базу;
 - browser profiles.
 
-Для будущего декларативного управления секретами используй `sops-nix` или `agenix`.
+Для будущего декларативного управления системными секретами используй `sops-nix` или `agenix`. KeePassXC предназначен для пользовательских паролей и Secret Service, но не для подстановки секретов в NixOS-конфигурацию во время сборки.
