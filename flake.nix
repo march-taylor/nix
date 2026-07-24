@@ -72,6 +72,8 @@
       nixosConfigurations.desktop = mkHost ./hosts/desktop;
 
       packages.${system} = {
+        disko = disko.packages.${system}.disko;
+        disko-install = disko.packages.${system}.disko-install;
         installer-iso = self.nixosConfigurations.installer.config.system.build.isoImage;
         offline-installer-iso = self.nixosConfigurations.offline-installer.config.system.build.isoImage;
       };
