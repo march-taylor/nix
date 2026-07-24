@@ -13,12 +13,15 @@
   services.dbus.enable = true;
   security.polkit.enable = true;
 
+  # Removable media and desktop file access.
   services.gvfs.enable = true;
   services.udisks2.enable = true;
   services.printing.enable = true;
-  services.gnome.gnome-keyring.enable = true;
-  security.pam.services.greetd.enableGnomeKeyring = true;
   programs.dconf.enable = true;
+
+  # GNOME Keyring is intentionally disabled. KeePassXC provides the
+  # org.freedesktop.secrets service from the Home Manager configuration.
+  services.gnome.gnome-keyring.enable = false;
 
   fonts.packages = with pkgs; [
     nerd-fonts.jetbrains-mono
@@ -29,8 +32,6 @@
   ];
 
   environment.systemPackages = with pkgs; [
-    gnome-keyring
-    seahorse
     gparted
     ntfs3g
     exfatprogs
