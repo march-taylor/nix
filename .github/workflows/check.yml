@@ -17,5 +17,11 @@ jobs:
       - uses: DeterminateSystems/determinate-nix-action@v3
       - name: Evaluate flake
         run: nix flake check --accept-flake-config --no-build --show-trace
+      - name: Build and inspect iNiR runtime
+        run: |
+          nix build .#inir --accept-flake-config --out-link result-inir --show-trace
+          test -x result-inir/bin/inir
+          test -f result-inir/share/quickshell/inir/shell.qml
+          test -f result-inir/share/quickshell/inir/defaults/config.json
       - name: Build desktop system
         run: nix build .#nixosConfigurations.desktop.config.system.build.toplevel --accept-flake-config --no-link --show-trace
