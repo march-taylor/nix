@@ -1,24 +1,26 @@
-# Replace this file during installation with the output of:
-#   nixos-generate-config --root /mnt
-# Never install a real machine with this placeholder unchanged.
-{ lib, ... }:
+# Hardware profile for:
+# - Gigabyte B550M AORUS ELITE
+# - AMD Ryzen 5 5600
+# - AMD Radeon RX 7800 XT
+# - ADATA LEGEND 960 NVMe
+#
+# File systems are declared by disko.nix, so they must not be duplicated here.
+{ config, lib, ... }:
 {
-  boot.initrd.availableKernelModules = [ ];
-  boot.initrd.kernelModules = [ ];
-  boot.kernelModules = [ ];
+  boot.initrd.availableKernelModules = [
+    "nvme"
+    "xhci_pci"
+    "ahci"
+    "usb_storage"
+    "usbhid"
+    "sd_mod"
+  ];
+  boot.initrd.kernelModules = [ "amdgpu" ];
+  boot.kernelModules = [ "kvm-amd" ];
   boot.extraModulePackages = [ ];
 
-  fileSystems."/" = lib.mkDefault {
-    device = "/dev/disk/by-label/nixos";
-    fsType = "ext4";
-  };
+  hardware.cpu.amd.updateMicrocode =
+    lib.mkDefault config.hardware.enableRedistributableFirmware;
 
-  fileSystems."/boot" = lib.mkDefault {
-    device = "/dev/disk/by-label/boot";
-    fsType = "vfat";
-    options = [ "fmask=0022" "dmask=0022" ];
-  };
-
-  swapDevices = [ ];
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
 }
