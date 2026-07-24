@@ -87,6 +87,7 @@
       nixosConfigurations.desktop = mkHost ./hosts/desktop;
 
       packages.${system} = {
+        inir = self.nixosConfigurations.desktop.config.programs.inir.package;
         disko = disko.packages.${system}.disko;
         disko-install = disko.packages.${system}.disko-install;
         installer-iso = self.nixosConfigurations.installer.config.system.build.isoImage;
@@ -106,6 +107,9 @@
       };
 
       formatter.${system} = nixpkgs.legacyPackages.${system}.nixfmt-rfc-style;
-      checks.${system}.desktop = self.nixosConfigurations.desktop.config.system.build.toplevel;
+      checks.${system} = {
+        inir = self.packages.${system}.inir;
+        desktop = self.nixosConfigurations.desktop.config.system.build.toplevel;
+      };
     };
 }
