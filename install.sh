@@ -9,8 +9,16 @@ MIN_DISK_BYTES=900000000000
 MAX_DISK_BYTES=1100000000000
 REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 TARGET="/mnt"
+RESUME=false
 
 trap 'echo "Installation stopped at line ${LINENO}. Read the error above before retrying." >&2' ERR
+
+if [[ ${1:-} == "--resume" ]]; then
+  RESUME=true
+elif (( $# != 0 )); then
+  echo "Usage: sudo bash ./install.sh [--resume]" >&2
+  exit 2
+fi
 
 if [[ ${EUID} -ne 0 ]]; then
   echo "Run this installer as root: sudo bash ./install.sh" >&2
@@ -95,48 +103,84 @@ lock_flake() {
   return 1
 }
 
+verify_target_mounts() {
+  local root_fs boot_fs
+
+  root_fs="$(findmnt -n -o FSTYPE "${TARGET}" 2>/dev/null || true)"
+  boot_fs="$(findmnt -n -o FSTYPE "${TARGET}/boot" 2>/dev/null || true)"
+
+  if [[ ${root_fs} != "ext4" ]]; then
+    echo "Expected ext4 at ${TARGET}, got '${root_fs:-not mounted}'." >&2
+    return 1
+  fi
+
+  if [[ ${boot_fs} != "vfat" ]]; then
+    echo "Expected vfat at ${TARGET}/boot, got '${boot_fs:-not mounted}'." >&2
+    return 1
+  fi
+}
+
+mount_existing_target() {
+  mkdir -p "${TARGET}"
+
+  if ! mountpoint -q "${TARGET}"; then
+    if [[ ! -e /dev/disk/by-label/nixos ]]; then
+      echo "Cannot resume: ext4 filesystem label 'nixos' was not found." >&2
+      return 1
+    fi
+    mount /dev/disk/by-label/nixos "${TARGET}"
+  fi
+
+  mkdir -p "${TARGET}/boot"
+  if ! mountpoint -q "${TARGET}/boot"; then
+    if [[ ! -e /dev/disk/by-partlabel/ESP ]]; then
+      echo "Cannot resume: EFI partition label 'ESP' was not found." >&2
+      return 1
+    fi
+    mount /dev/disk/by-partlabel/ESP "${TARGET}/boot"
+  fi
+
+  verify_target_mounts
+}
+
 echo
 echo "==> Locking and evaluating the configuration before disk changes"
 cd "${REPO_ROOT}"
 lock_flake
 nix flake check --no-build --show-trace
 
-echo
-printf 'This permanently erases every partition on %s.\n' "${DISK}"
-printf 'Verified model: %s, size: %s bytes.\n' "${actual_model}" "${actual_bytes}"
-printf 'The Kingston USB drive /dev/sda is not referenced by Disko.\n\n'
-read -r -p "Type exactly 'ERASE /dev/nvme0n1' to continue: " confirmation
+if [[ ${RESUME} == true ]]; then
+  echo
+echo "==> Resume mode: keeping the existing partition table and filesystems"
+  mount_existing_target
+else
+  echo
+  printf 'This permanently erases every partition on %s.\n' "${DISK}"
+  printf 'Verified model: %s, size: %s bytes.\n' "${actual_model}" "${actual_bytes}"
+  printf 'The Kingston USB drive /dev/sda is not referenced by Disko.\n\n'
+  read -r -p "Type exactly 'ERASE /dev/nvme0n1' to continue: " confirmation
 
-if [[ ${confirmation} != "ERASE /dev/nvme0n1" ]]; then
-  echo "Confirmation did not match. Nothing was erased."
-  exit 1
-fi
+  if [[ ${confirmation} != "ERASE /dev/nvme0n1" ]]; then
+    echo "Confirmation did not match. Nothing was erased."
+    exit 1
+  fi
 
-umount -R "${TARGET}" 2>/dev/null || true
-mkdir -p "${TARGET}"
+  umount -R "${TARGET}" 2>/dev/null || true
+  mkdir -p "${TARGET}"
 
-echo "==> Partitioning, formatting and mounting ${DISK}"
-nix run .#disko -- \
-  --mode destroy,format,mount \
-  "${REPO_ROOT}/hosts/desktop/disko.nix"
+  echo "==> Partitioning, formatting and mounting ${DISK}"
+  nix run .#disko -- \
+    --mode destroy,format,mount \
+    "${REPO_ROOT}/hosts/desktop/disko.nix"
 
-echo "==> Verifying mounted filesystems"
-root_fs="$(findmnt -n -o FSTYPE "${TARGET}")"
-boot_fs="$(findmnt -n -o FSTYPE "${TARGET}/boot")"
-
-if [[ ${root_fs} != "ext4" ]]; then
-  echo "Expected ext4 at ${TARGET}, got '${root_fs}'." >&2
-  exit 1
-fi
-
-if [[ ${boot_fs} != "vfat" ]]; then
-  echo "Expected vfat at ${TARGET}/boot, got '${boot_fs}'." >&2
-  exit 1
+  echo "==> Verifying mounted filesystems"
+  verify_target_mounts
 fi
 
 lsblk -f "${DISK}"
 
 echo "==> Copying this repository to ${TARGET}/etc/nixos"
+rm -rf "${TARGET}/etc/nixos"
 mkdir -p "${TARGET}/etc/nixos"
 cp -a "${REPO_ROOT}/." "${TARGET}/etc/nixos/"
 rm -f "${TARGET}/etc/nixos/result"
