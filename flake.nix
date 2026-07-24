@@ -1,5 +1,5 @@
 {
-  description = "March Taylor's reproducible NixOS + Niri + iNiR system";
+  description = "Mart's reproducible NixOS + Niri + iNiR system";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -9,21 +9,52 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    disko = {
+      url = "github:nix-community/disko";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     niri.url = "github:sodiboo/niri-flake";
     inir.url = "github:snowarch/iNiR";
+
+    nixcord = {
+      url = "github:4evy/nixcord";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    zen-browser = {
+      url = "github:youwen5/zen-browser-flake";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    ayugram-desktop = {
+      url = "github:ndfined-crp/ayugram-desktop";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = inputs@{ self, nixpkgs, home-manager, niri, inir, ... }:
+  outputs =
+    inputs@{
+      self,
+      nixpkgs,
+      home-manager,
+      disko,
+      niri,
+      inir,
+      ...
+    }:
     let
       settings = import ./settings.nix;
       inherit (settings) system username;
 
-      mkHost = hostModule:
+      mkHost =
+        hostModule:
         nixpkgs.lib.nixosSystem {
           inherit system;
           specialArgs = { inherit inputs settings; };
           modules = [
             hostModule
+            disko.nixosModules.disko
             niri.nixosModules.niri
             inir.nixosModules.inir
             home-manager.nixosModules.home-manager
@@ -36,7 +67,8 @@
             }
           ];
         };
-    in {
+    in
+    {
       nixosConfigurations.desktop = mkHost ./hosts/desktop;
 
       packages.${system} = {
@@ -57,7 +89,6 @@
       };
 
       formatter.${system} = nixpkgs.legacyPackages.${system}.nixfmt-rfc-style;
-
       checks.${system}.desktop = self.nixosConfigurations.desktop.config.system.build.toplevel;
     };
 }
