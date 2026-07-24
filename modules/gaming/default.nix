@@ -13,5 +13,6 @@
     mangohud
     goverlay
     protonup-qt
+    prismlauncher
   ];
 }
