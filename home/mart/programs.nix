@@ -1,10 +1,35 @@
 {
+  config,
   inputs,
+  lib,
   pkgs,
   ...
 }:
 let
   system = pkgs.stdenv.hostPlatform.system;
+  keepassxcInitialConfig = pkgs.writeText "keepassxc-initial.ini" ''
+    [Browser]
+    Enabled=true
+    UpdateBinaryPath=false
+
+    [FdoSecrets]
+    Enabled=true
+    ShowNotification=true
+    ConfirmDeleteItem=true
+    ConfirmAccessItem=true
+    UnlockBeforeSearch=true
+
+    [GUI]
+    ApplicationTheme=dark
+    ShowTrayIcon=true
+    MinimizeToTray=true
+    MinimizeOnClose=true
+
+    [Security]
+    ClearClipboard=true
+    ClearClipboardTimeout=15
+    LockDatabaseScreenLock=true
+  '';
 in
 {
   home.packages = [
@@ -78,31 +103,19 @@ in
   programs.keepassxc = {
     enable = true;
     autostart = true;
-    settings = {
-      Browser = {
-        Enabled = true;
-        UpdateBinaryPath = false;
-      };
-      FdoSecrets = {
-        Enabled = true;
-        ShowNotification = true;
-        ConfirmDeleteItem = true;
-        ConfirmAccessItem = true;
-        UnlockBeforeSearch = true;
-      };
-      GUI = {
-        ApplicationTheme = "dark";
-        ShowTrayIcon = true;
-        MinimizeToTray = true;
-        MinimizeOnClose = true;
-      };
-      Security = {
-        ClearClipboard = true;
-        ClearClipboardTimeout = 15;
-        LockDatabaseScreenLock = true;
-      };
-    };
   };
+
+  # Seed a normal writable config only on the first activation. Home Manager
+  # does not own the file afterwards, so KeePassXC can change its settings from
+  # the GUI without hitting a read-only /nix/store symlink.
+  home.activation.seedKeePassXCConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    config_file="${config.xdg.configHome}/keepassxc/keepassxc.ini"
+    if [ ! -e "$config_file" ]; then
+      run mkdir -p "$(dirname "$config_file")"
+      run cp "${keepassxcInitialConfig}" "$config_file"
+      run chmod u+w "$config_file"
+    fi
+  '';
 
   # Let applications using libsecret/org.freedesktop.secrets launch KeePassXC.
   # GNOME Keyring is disabled at the NixOS level to avoid two providers racing
