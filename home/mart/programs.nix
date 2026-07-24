@@ -13,10 +13,14 @@ in
   ]
   ++ (with pkgs; [
     pear-desktop
-    keepassxc
 
-    nautilus
-    file-roller
+    kdePackages.dolphin
+    kdePackages.ark
+    kdePackages.kio-admin
+    kdePackages.kio-extras
+    kdePackages.ffmpegthumbs
+    kdePackages.kdegraphics-thumbnailers
+
     imv
     mpv
     pavucontrol
@@ -69,6 +73,49 @@ in
       "telemetry.telemetryLevel" = "off";
       "update.mode" = "none";
     };
+  };
+
+  programs.keepassxc = {
+    enable = true;
+    autostart = true;
+    settings = {
+      Browser = {
+        Enabled = true;
+        UpdateBinaryPath = false;
+      };
+      FdoSecrets = {
+        Enabled = true;
+        ShowNotification = true;
+        ConfirmDeleteItem = true;
+        ConfirmAccessItem = true;
+        UnlockBeforeSearch = true;
+      };
+      GUI = {
+        ApplicationTheme = "dark";
+        ShowTrayIcon = true;
+        MinimizeToTray = true;
+        MinimizeOnClose = true;
+      };
+      Security = {
+        ClearClipboard = true;
+        ClearClipboardTimeout = 15;
+        LockDatabaseScreenLock = true;
+      };
+    };
+  };
+
+  # Let applications using libsecret/org.freedesktop.secrets launch KeePassXC.
+  # GNOME Keyring is disabled at the NixOS level to avoid two providers racing
+  # for the same DBus name.
+  xdg.dataFile."dbus-1/services/org.freedesktop.secrets.service".text = ''
+    [D-BUS Service]
+    Name=org.freedesktop.secrets
+    Exec=${pkgs.keepassxc}/bin/keepassxc
+  '';
+
+  xdg.mimeApps = {
+    enable = true;
+    defaultApplications."inode/directory" = [ "org.kde.dolphin.desktop" ];
   };
 
   programs.kitty = {
