@@ -135,15 +135,24 @@ EOF
   # come from this package set rather than from the host system's nixpkgs.
   upstreamInirRuntimePackages = upstreamInirPackage.passthru.runtimeDependencies or [ ];
 
+  # Current nixpkgs exposes Kirigami as an empty wrapper derivation whose actual
+  # QML payload lives in passthru.unwrapped. Include that payload and propagated
+  # dependencies such as qqc2-desktop-style when constructing the QML runtime.
+  expandQmlPackage = package:
+    [ package ]
+    ++ lib.optional (package ? unwrapped) package.unwrapped
+    ++ (package.propagatedBuildInputs or [ ]);
+  upstreamInirQmlPackages = lib.concatMap expandQmlPackage upstreamInirRuntimePackages;
+
   # Qt packages have used both qt-6 and qt6 directory layouts. Keep both in the
   # runtime search path; empty/nonexistent entries are harmless.
   inirQmlPath = lib.concatStringsSep ":" [
-    (lib.makeSearchPath "lib/qt-6/qml" upstreamInirRuntimePackages)
-    (lib.makeSearchPath "lib/qt6/qml" upstreamInirRuntimePackages)
+    (lib.makeSearchPath "lib/qt-6/qml" upstreamInirQmlPackages)
+    (lib.makeSearchPath "lib/qt6/qml" upstreamInirQmlPackages)
   ];
   inirQtPluginPath = lib.concatStringsSep ":" [
-    (lib.makeSearchPath "lib/qt-6/plugins" upstreamInirRuntimePackages)
-    (lib.makeSearchPath "lib/qt6/plugins" upstreamInirRuntimePackages)
+    (lib.makeSearchPath "lib/qt-6/plugins" upstreamInirQmlPackages)
+    (lib.makeSearchPath "lib/qt6/plugins" upstreamInirQmlPackages)
   ];
 
   # Keep upstream's package, launcher and module behavior. Patch only current
@@ -178,7 +187,7 @@ EOF
       qml_root="$runtime/qml"
       mkdir -p "$qml_root/org/kde"
 
-      for dependency in ${lib.escapeShellArgs (map toString upstreamInirRuntimePackages)}; do
+      for dependency in ${lib.escapeShellArgs (map toString upstreamInirQmlPackages)}; do
         while IFS= read -r qmldir; do
           module_dir="$(dirname "$qmldir")"
           case "$module_dir" in
@@ -190,6 +199,7 @@ EOF
           if [ ! -e "$target" ]; then
             mkdir -p "$(dirname "$target")"
             ln -s "$module_dir" "$target"
+            echo "Bundled QML module: $relative <- $module_dir"
           fi
         done < <(
           find -L "$dependency" -type f \
@@ -199,13 +209,19 @@ EOF
       done
 
       # Fail at build time instead of shipping a runtime that can only enter a
-      # systemd restart loop.
+      # systemd restart loop. Print useful diagnostics when Kirigami is absent.
+      if [ ! -f "$qml_root/org/kde/kirigami/qmldir" ]; then
+        echo "ERROR: org.kde.kirigami was not found in the expanded upstream QML packages" >&2
+        printf '  %s\n' ${lib.escapeShellArgs (map toString upstreamInirQmlPackages)} >&2
+        find "$qml_root" -maxdepth 5 -print >&2 || true
+        exit 1
+      fi
+
       test -f "$runtime/shell.qml"
       test -f "$runtime/settings.qml"
       test -f "$runtime/defaults/config.json"
       test -d "$runtime/modules"
       test -d "$runtime/services"
-      test -f "$qml_root/org/kde/kirigami/qmldir"
       test -x "$out/bin/inir"
     '';
 
