@@ -26,7 +26,7 @@
     parted
     gptfdisk
     dosfstools
-    btrfs-progs
+    e2fsprogs
     nvme-cli
   ]) ++ [
     inputs.disko.packages.${pkgs.stdenv.hostPlatform.system}.disko
