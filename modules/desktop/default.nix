@@ -1,12 +1,12 @@
-{ config, lib, pkgs, ... }:
+{ lib, pkgs, ... }:
 {
   imports = [ ./niri.nix ];
 
-  services.greetd = {
-    enable = true;
-    settings.default_session = {
-      command = "${pkgs.tuigreet}/bin/tuigreet --time --remember --cmd ${config.programs.niri.package}/bin/niri-session";
-      user = "greeter";
+  services.displayManager = {
+    defaultSession = "niri";
+    sddm = {
+      enable = true;
+      wayland.enable = true;
     };
   };
 
@@ -22,7 +22,6 @@
   # niri-flake enables GNOME Keyring by default. Force it off so KeePassXC is
   # the only org.freedesktop.secrets provider in the user session.
   services.gnome.gnome-keyring.enable = lib.mkForce false;
-  security.pam.services.greetd.enableGnomeKeyring = lib.mkForce false;
 
   fonts.packages = with pkgs; [
     nerd-fonts.jetbrains-mono
