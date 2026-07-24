@@ -180,10 +180,9 @@ EOF
         \( -name '*.qml' -o -name '*.js' \) \
         -exec sed -i 's#/usr/bin/##g' {} +
 
-      # Quickshell currently fails to resolve KDE modules from the environment
-      # path alone. Create a stable local QML import root inside the packaged
-      # configuration, using modules from the exact Qt closure which built the
-      # upstream Quickshell. Follow symlinks and accept both qt-6 and qt6 layouts.
+      # Link each top-level org.kde module as a complete tree. Linking nested
+      # qmldir directories first creates real parent directories and prevents
+      # the root Kirigami module, which owns its qmldir, from being linked.
       qml_root="$runtime/qml"
       mkdir -p "$qml_root/org/kde"
 
@@ -191,15 +190,21 @@ EOF
         while IFS= read -r qmldir; do
           module_dir="$(dirname "$qmldir")"
           case "$module_dir" in
-            */qml/*) relative="''${module_dir#*/qml/}" ;;
+            */qml/org/kde/*)
+              qml_prefix="''${module_dir%%/org/kde/*}"
+              module_tail="''${module_dir#*/qml/org/kde/}"
+              module_name="''${module_tail%%/*}"
+              ;;
             *) continue ;;
           esac
 
-          target="$qml_root/$relative"
-          if [ ! -e "$target" ]; then
-            mkdir -p "$(dirname "$target")"
-            ln -s "$module_dir" "$target"
-            echo "Bundled QML module: $relative <- $module_dir"
+          [ -n "$module_name" ] || continue
+          source="$qml_prefix/org/kde/$module_name"
+          target="$qml_root/org/kde/$module_name"
+
+          if [ ! -e "$target" ] && [ -d "$source" ]; then
+            ln -s "$source" "$target"
+            echo "Bundled QML module: org/kde/$module_name <- $source"
           fi
         done < <(
           find -L "$dependency" -type f \
