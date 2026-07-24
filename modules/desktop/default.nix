@@ -13,14 +13,14 @@ in
 {
   imports = [ ./niri.nix ];
 
-  # Use the mature X11 SDDM greeter. The previous experimental Wayland greeter
-  # did not inherit a valid XKB layout and displayed the bogus "zz" layout.
+  # Use the mature X11 SDDM greeter. Keep its login layout deliberately simple;
+  # Niri itself provides US/Russian switching after login.
   services.xserver = {
     enable = true;
     xkb = {
-      layout = "us,ru";
+      layout = "us";
       variant = "";
-      options = "grp:win_space_toggle";
+      options = "";
     };
   };
 
