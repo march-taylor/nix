@@ -4,6 +4,7 @@
     ./programs.nix
     ./discord.nix
     ./niri.nix
+    ./inir.nix
   ];
 
   home.username = settings.username;
