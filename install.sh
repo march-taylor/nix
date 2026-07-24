@@ -46,13 +46,43 @@ echo
 echo "==> Other disks (these are NOT referenced by Disko)"
 lsblk -d -o NAME,SIZE,MODEL,SERIAL,TRAN | grep -v "$(basename "${DISK}")" || true
 
+lock_file_is_valid() {
+  [[ -s flake.lock ]] || return 1
+
+  nix-instantiate --eval --strict --expr '
+    let
+      lock = builtins.fromJSON (builtins.readFile ./flake.lock);
+    in
+      builtins.isAttrs lock
+      && lock ? version
+      && lock ? root
+      && lock ? nodes
+  ' 2>/dev/null | grep -qx true
+}
+
+remove_invalid_lock_file() {
+  if [[ -e flake.lock ]] && ! lock_file_is_valid; then
+    echo "Removing empty or malformed flake.lock left by an interrupted download." >&2
+    rm -f flake.lock
+  fi
+}
+
 lock_flake() {
   local attempt
+
+  remove_invalid_lock_file
+
   for attempt in 1 2 3; do
     echo "==> Creating/updating flake.lock (attempt ${attempt}/3)"
     if nix flake lock; then
-      return 0
+      if lock_file_is_valid; then
+        return 0
+      fi
+
+      echo "nix flake lock returned success, but flake.lock is invalid." >&2
     fi
+
+    remove_invalid_lock_file
 
     if (( attempt < 3 )); then
       echo "Flake download failed. Clearing the live ISO fetch cache before retrying." >&2
@@ -61,7 +91,7 @@ lock_flake() {
     fi
   done
 
-  echo "Unable to create flake.lock after three attempts." >&2
+  echo "Unable to create a valid flake.lock after three attempts." >&2
   return 1
 }
 
