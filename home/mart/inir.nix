@@ -62,13 +62,14 @@ in
       # Keep the requested US/Russian layout, Dolphin and the NixOS-provided
       # polkit agent while retaining the rest of iNiR's upstream defaults.
       ${pkgs.gnused}/bin/sed -i \
-        's/layout "us"/layout "us,ru"\n            options "grp:win_space_toggle"/' \
+        -e 's/layout "us"/layout "us,ru"/' \
+        -e '/layout "us,ru"/a\            options "grp:win_space_toggle"' \
         "$niri_dir/config.d/10-input-and-cursor.kdl"
       ${pkgs.gnused}/bin/sed -i \
         's/spawn "nautilus"/spawn "dolphin"/' \
         "$niri_dir/config.d/70-binds.kdl"
       ${pkgs.gnused}/bin/sed -i \
-        '\#/usr/lib/mate-polkit/polkit-mate-authentication-agent-1#d' \
+        '/mate-polkit-authentication-agent-1/d' \
         "$niri_dir/config.d/50-startup.kdl"
 
       ${pkgs.coreutils}/bin/touch "$marker"
