@@ -7,14 +7,19 @@
 let
   system = pkgs.stdenv.hostPlatform.system;
 
-  # iNiR 2.27.0 contains a legacy Hyprland-only Python helper with an
-  # `env -S` shell trampoline that Nix's automatic patchShebangs hook cannot
-  # parse. It is not used by Niri, but its executable bit makes the package
-  # fixup phase inspect it and abort the entire system build. Give that helper
-  # a normal Python shebang before the standard fixup hooks run.
+  # iNiR 2.27.0 contains two Python helpers with an `env -S` shell trampoline
+  # that Nix's automatic patchShebangs hook cannot parse. One is Hyprland-only,
+  # but both become executable during packaging, so either can abort the whole
+  # NixOS build. Replace only their first lines with a normal Python shebang
+  # before the standard fixup hooks run.
   patchedInir = inputs.inir.packages.${system}.default.overrideAttrs (oldAttrs: {
     postPatch = (oldAttrs.postPatch or "") + ''
-      sed -i '1c\#!${pkgs.python3}/bin/python3' scripts/hyprland/get_keybinds.py
+      for helper in \
+        scripts/hyprland/get_keybinds.py \
+        scripts/colors/generate_colors_material.py
+      do
+        sed -i '1c\#!${pkgs.python3}/bin/python3' "$helper"
+      done
     '';
   });
 in
