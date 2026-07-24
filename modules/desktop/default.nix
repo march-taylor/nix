@@ -9,6 +9,18 @@ let
     mkdir -p "$out/share/sddm/themes"
     cp -R "${inputs.inir}/dots/sddm/pixel" "$out/share/sddm/themes/ii-pixel"
   '';
+
+  # iNiR's Arch installer treats these as its UI font set. Google Fonts allows
+  # selecting the same families without downloading the entire collection.
+  inirGoogleFonts = pkgs.google-fonts.override {
+    fonts = [
+      "Gabarito"
+      "Oxanium"
+      "Readex Pro"
+      "Roboto Flex"
+      "Space Grotesk"
+    ];
+  };
 in
 {
   imports = [ ./niri.nix ];
@@ -53,13 +65,34 @@ in
   # the only org.freedesktop.secrets provider in the user session.
   services.gnome.gnome-keyring.enable = lib.mkForce false;
 
-  fonts.packages = with pkgs; [
-    nerd-fonts.jetbrains-mono
-    rubik
-    noto-fonts
-    noto-fonts-cjk-sans
-    noto-fonts-color-emoji
-  ];
+  fonts = {
+    packages = with pkgs; [
+      inirGoogleFonts
+      material-symbols
+      geist-font
+      nerd-fonts.jetbrains-mono
+      roboto
+      rubik
+      noto-fonts
+      noto-fonts-cjk-sans
+      noto-fonts-color-emoji
+      liberation_ttf
+      dejavu_fonts
+    ];
+
+    fontconfig.defaultFonts = {
+      sansSerif = [
+        "Roboto Flex"
+        "Noto Sans"
+      ];
+      serif = [ "Noto Serif" ];
+      monospace = [
+        "JetBrainsMono Nerd Font"
+        "Noto Sans Mono"
+      ];
+      emoji = [ "Noto Color Emoji" ];
+    };
+  };
 
   environment.systemPackages = [
     inirSddmTheme
