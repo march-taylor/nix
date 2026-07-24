@@ -134,8 +134,17 @@ EOF
   # bundled Quickshell. QML plugins are ABI-sensitive, so Kirigami and Qt must
   # come from this package set rather than from the host system's nixpkgs.
   upstreamInirRuntimePackages = upstreamInirPackage.passthru.runtimeDependencies or [ ];
-  inirQmlPath = lib.makeSearchPath "lib/qt-6/qml" upstreamInirRuntimePackages;
-  inirQtPluginPath = lib.makeSearchPath "lib/qt-6/plugins" upstreamInirRuntimePackages;
+
+  # Qt packages have used both qt-6 and qt6 directory layouts. Keep both in the
+  # runtime search path; empty/nonexistent entries are harmless.
+  inirQmlPath = lib.concatStringsSep ":" [
+    (lib.makeSearchPath "lib/qt-6/qml" upstreamInirRuntimePackages)
+    (lib.makeSearchPath "lib/qt6/qml" upstreamInirRuntimePackages)
+  ];
+  inirQtPluginPath = lib.concatStringsSep ":" [
+    (lib.makeSearchPath "lib/qt-6/plugins" upstreamInirRuntimePackages)
+    (lib.makeSearchPath "lib/qt6/plugins" upstreamInirRuntimePackages)
+  ];
 
   # Keep upstream's package, launcher and module behavior. Patch only current
   # packaging defects in the flake output.
@@ -165,22 +174,28 @@ EOF
       # Quickshell currently fails to resolve KDE modules from the environment
       # path alone. Create a stable local QML import root inside the packaged
       # configuration, using modules from the exact Qt closure which built the
-      # upstream Quickshell. This also covers org.kde.syntaxhighlighting.
+      # upstream Quickshell. Follow symlinks and accept both qt-6 and qt6 layouts.
       qml_root="$runtime/qml"
       mkdir -p "$qml_root/org/kde"
 
       for dependency in ${lib.escapeShellArgs (map toString upstreamInirRuntimePackages)}; do
         while IFS= read -r qmldir; do
           module_dir="$(dirname "$qmldir")"
-          relative="$(printf '%s\n' "$module_dir" | sed -E 's#^.*/lib/qt-6/qml/##')"
-          [ "$relative" != "$module_dir" ] || continue
+          case "$module_dir" in
+            */qml/*) relative="${module_dir#*/qml/}" ;;
+            *) continue ;;
+          esac
 
           target="$qml_root/$relative"
           if [ ! -e "$target" ]; then
             mkdir -p "$(dirname "$target")"
             ln -s "$module_dir" "$target"
           fi
-        done < <(find "$dependency" -type f -path '*/lib/qt-6/qml/org/kde/*/qmldir' -print 2>/dev/null || true)
+        done < <(
+          find -L "$dependency" -type f \
+            -path '*/qml/org/kde/*/qmldir' \
+            -print 2>/dev/null || true
+        )
       done
 
       # Fail at build time instead of shipping a runtime that can only enter a
