@@ -14,10 +14,6 @@ let
     lib.optional
       (builtins.hasAttr "kdePackages" pkgs && builtins.hasAttr name pkgs.kdePackages)
       (builtins.getAttr name pkgs.kdePackages);
-  optionalQt6 = name:
-    lib.optional
-      (builtins.hasAttr "qt6" pkgs && builtins.hasAttr name pkgs.qt6)
-      (builtins.getAttr name pkgs.qt6);
   optionalPython = name:
     lib.optional
       (builtins.hasAttr name pkgs.python3Packages)
@@ -132,33 +128,18 @@ EOF
   # now intentionally throws a renamed-attribute error during Nix evaluation.
   ++ [ pkgs.qt6Packages.qt6ct ];
 
-  # Quickshell must be able to resolve these imports while loading shell.qml.
-  # A missing org.kde.kirigami import produces only the generic top-level error
-  # "Failed to load configuration", so make both Qt 5/6 environment variable
-  # names explicit instead of relying on host defaults.
-  inirQmlPackages =
-    optionalKde "kirigami"
-    ++ optionalKde "syntax-highlighting"
-    ++ optionalQt6 "qt5compat"
-    ++ optionalQt6 "qtbase"
-    ++ optionalQt6 "qtdeclarative"
-    ++ optionalQt6 "qtimageformats"
-    ++ optionalQt6 "qtmultimedia"
-    ++ optionalQt6 "qtpositioning"
-    ++ optionalQt6 "qtquicktimeline"
-    ++ optionalQt6 "qtsensors"
-    ++ optionalQt6 "qtsvg"
-    ++ optionalQt6 "qttools"
-    ++ optionalQt6 "qttranslations"
-    ++ optionalQt6 "qtvirtualkeyboard"
-    ++ optionalQt6 "qtwayland";
+  upstreamInirPackage = inputs.inir.packages.${system}.default;
 
-  inirQmlPath = lib.makeSearchPath "lib/qt-6/qml" inirQmlPackages;
-  inirQtPluginPath = lib.makeSearchPath "lib/qt-6/plugins" inirQmlPackages;
+  # The upstream package exposes the exact runtime closure used to build its
+  # bundled Quickshell. QML plugins are ABI-sensitive, so Kirigami and Qt must
+  # come from this package set rather than from the host system's nixpkgs.
+  upstreamInirRuntimePackages = upstreamInirPackage.passthru.runtimeDependencies or [ ];
+  inirQmlPath = lib.makeSearchPath "lib/qt-6/qml" upstreamInirRuntimePackages;
+  inirQtPluginPath = lib.makeSearchPath "lib/qt-6/plugins" upstreamInirRuntimePackages;
 
   # Keep upstream's package, launcher and module behavior. Patch only current
   # packaging defects in the flake output.
-  inirPackage = inputs.inir.packages.${system}.default.overrideAttrs (oldAttrs: {
+  inirPackage = upstreamInirPackage.overrideAttrs (oldAttrs: {
     postPatch = (oldAttrs.postPatch or "") + ''
       sed -i '1c\#!${pkgs.python3}/bin/python3' \
         scripts/hyprland/get_keybinds.py \
@@ -191,9 +172,9 @@ EOF
     '';
 
     postFixup = (oldAttrs.postFixup or "") + ''
-      # Preserve upstream's wrapper and add the complete NixOS Qt/QML search
-      # paths. QML_IMPORT_PATH is needed by some Qt 6 loaders even though the
-      # older QML2_IMPORT_PATH name remains supported.
+      # Preserve upstream's wrapper and add the QML/plugin paths from the exact
+      # Qt stack which built Quickshell. Prefix both variable names because Qt 6
+      # loaders in the wild still differ in which one they inspect.
       wrapProgram "$out/bin/inir" \
         --prefix QML_IMPORT_PATH : "${inirQmlPath}" \
         --prefix QML2_IMPORT_PATH : "${inirQmlPath}" \
@@ -212,11 +193,13 @@ in
     enable = true;
     package = inirPackage;
     service.compositor = "niri";
-    extraPackages = [ config.programs.niri.package ] ++ inirRuntimePackages;
+    extraPackages =
+      [ config.programs.niri.package ]
+      ++ upstreamInirRuntimePackages
+      ++ inirRuntimePackages;
   };
 
-  # Add the QML and Python environments to the unit as well as to the launcher
-  # wrapper. The wrapper prefixes its own upstream paths, so these are additive.
+  # The unit receives the same ABI-matched QML paths as the launcher wrapper.
   systemd.user.services.inir.environment = {
     QML_IMPORT_PATH = inirQmlPath;
     QML2_IMPORT_PATH = inirQmlPath;
