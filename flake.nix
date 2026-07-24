@@ -1,6 +1,19 @@
 {
   description = "Mart's reproducible NixOS + Niri + iNiR system";
 
+  nixConfig = {
+    extra-substituters = [
+      "https://cache.garnix.io"
+      "https://ayugram-desktop.cachix.org"
+      "https://tg-owt.cachix.org"
+    ];
+    extra-trusted-public-keys = [
+      "cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g="
+      "ayugram-desktop.cachix.org-1:AZ5EqHrJsAKL5YkZYLPEsb1FdD9QlypUwQ0REcJftgA="
+      "tg-owt.cachix.org-1:lp0BukIhSK3EIyLcDhDZ5zABgT48nmNp6t4SnZ0wr8w="
+    ];
+  };
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -20,6 +33,7 @@
     nixcord = {
       url = "github:4evy/nixcord";
       inputs.nixpkgs.follows = "nixpkgs";
+      inputs."nixpkgs-nixcord".follows = "nixpkgs";
     };
 
     zen-browser = {
