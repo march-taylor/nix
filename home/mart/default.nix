@@ -3,7 +3,7 @@
   imports = [
     ./programs.nix
     ./discord.nix
-    ./inir.nix
+    ./niri.nix
   ];
 
   home.username = settings.username;
