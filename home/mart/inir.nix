@@ -69,7 +69,7 @@ in
         's/spawn "nautilus"/spawn "dolphin"/' \
         "$niri_dir/config.d/70-binds.kdl"
       ${pkgs.gnused}/bin/sed -i \
-        '/mate-polkit-authentication-agent-1/d' \
+        '/polkit-mate-authentication-agent-1/d' \
         "$niri_dir/config.d/50-startup.kdl"
 
       ${pkgs.coreutils}/bin/touch "$marker"
