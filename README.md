@@ -1,267 +1,240 @@
 # NixOS + Niri + iNiR
 
-Декларативная конфигурация NixOS с:
+Воспроизводимая конфигурация для текущего компьютера Mart:
 
-- Niri через `sodiboo/niri-flake`;
-- iNiR через официальный flake `snowarch/iNiR`;
-- Home Manager для пользовательских программ и настроек;
-- минимальным установочным ISO;
-- отдельным offline-образом, содержащим closure целевой системы;
-- структурой, в которой системный конфиг и собственный rice не смешиваются.
+- Gigabyte B550M AORUS ELITE;
+- AMD Ryzen 5 5600;
+- AMD Radeon RX 7800 XT;
+- ADATA LEGEND 960 1 TB — `/dev/nvme0n1`;
+- 32 GiB RAM;
+- UEFI;
+- пользователь `mart`;
+- Niri + iNiR + Home Manager.
 
-> Конфигурация рассчитана на современный UEFI-компьютер `x86_64-linux`. Перед установкой обязательно проверь `settings.nix` и замени шаблонный `hardware-configuration.nix` файлом, сгенерированным на целевой машине.
+## Важное предупреждение
 
-## Главная идея
-
-Этот репозиторий — источник истины для системы:
-
-```text
-Git history
-  + flake.nix
-  + flake.lock
-  + NixOS modules
-  + Home Manager
-  = воспроизводимая система
-```
-
-Сам iNiR не копируется внутрь репозитория. Он подключён как flake input и фиксируется в `flake.lock`. Это позволяет обновлять upstream отдельно:
-
-```bash
-nix flake update inir
-sudo nixos-rebuild switch --flake .#desktop
-```
-
-Для глубокой правки QML рекомендуется отдельный fork iNiR. Подробности находятся в [`docs/RICE.md`](docs/RICE.md).
-
-## Структура
+`hosts/desktop/disko.nix` полностью очищает **только**:
 
 ```text
-.
-├── flake.nix                         # inputs и системные outputs
-├── settings.nix                      # имя пользователя, hostname, локаль
-├── justfile                          # короткие команды обслуживания
-├── hosts/
-│   └── desktop/
-│       ├── default.nix               # точка входа конкретной машины
-│       └── hardware-configuration.nix
-├── modules/
-│   ├── core/default.nix              # boot, users, Nix, сеть, локаль
-│   ├── hardware/default.nix          # звук, Bluetooth, firmware
-│   └── desktop/
-│       ├── default.nix               # greetd
-│       └── niri.nix                  # Niri + iNiR
-├── home/
-│   └── march/
-│       ├── default.nix               # Home Manager entrypoint
-│       ├── programs.nix              # пользовательские программы
-│       └── niri.nix                  # бинды и layout Niri
-├── installer/
-│   ├── iso.nix                       # небольшой сетевой installer ISO
-│   └── offline.nix                   # ISO с closure целевой системы
-└── docs/
-    └── RICE.md                       # стратегия собственного rice
+/dev/nvme0n1 — ADATA LEGEND 960, примерно 1 TB
 ```
 
-## 1. Настрой параметры
+USB-накопитель:
 
-Отредактируй [`settings.nix`](settings.nix):
-
-```nix
-{
-  username = "march";
-  fullName = "March Taylor";
-  hostname = "nixos";
-  system = "x86_64-linux";
-  stateVersion = "26.05";
-  timezone = "Europe/Berlin";
-  locale = "en_US.UTF-8";
-}
+```text
+/dev/sda — Kingston DataTraveler, примерно 115 GB
 ```
 
-Если меняешь `username`, также переименуй каталог:
+не указан в Disko и не должен изменяться.
 
-```bash
-mv home/march home/НОВОЕ_ИМЯ
+Перед установкой сохрани все нужные данные с NVMe. Установка уничтожит существующий CachyOS и все разделы на `/dev/nvme0n1`.
+
+## Что будет установлено
+
+### Рабочее окружение
+
+- Niri;
+- iNiR из upstream `snowarch/iNiR`;
+- greetd/tuigreet;
+- PipeWire;
+- NetworkManager;
+- Bluetooth;
+- GNOME Keyring;
+- Flatpak и AppImage support;
+- Home Manager.
+
+### Приложения
+
+- VSCodium;
+- Zen Browser;
+- Discord с Equicord и OpenASAR через Nixcord;
+- AyuGram Desktop;
+- Steam;
+- Proton-GE и Protontricks;
+- Gamescope, GameMode, MangoHud, GOverlay и ProtonUp-Qt;
+- KeePassXC;
+- Pear Desktop — YouTube Music-клиент с поддержкой плагинов;
+- Kitty;
+- Nautilus;
+- mpv, imv, FFmpeg, yt-dlp;
+- pavucontrol и Helvum;
+- GParted;
+- инструменты диагностики AMD/Vulkan/OpenCL.
+
+> Equicord/OpenASAR изменяют официальный Discord-клиент. Использование клиентских модификаций может противоречить правилам Discord; используешь их на свой риск.
+
+## Разметка диска
+
+Disko создаёт GPT:
+
+```text
+/dev/nvme0n1
+├── ESP       2 GiB, FAT32, /boot
+└── NixOS     оставшееся место, Btrfs
+    ├── @root       /
+    ├── @home       /home
+    ├── @nix        /nix
+    ├── @log        /var/log
+    └── @snapshots  /.snapshots
 ```
 
-`stateVersion` для новой установки в 2026 году оставляй `26.05`. После установки не повышай его просто вместе с обновлением системы.
+Btrfs монтируется с `compress=zstd:3`, `noatime`, `ssd` и `discard=async`.
 
-## 2. Создай и закоммить `flake.lock`
+Дискового swap-раздела нет. Используется сжатый zram размером до 100% RAM.
 
-В первом коммите lock-файла ещё нет, потому что он должен быть сгенерирован Nix. Выполни:
+## Установка с NixOS Graphical ISO
 
-```bash
-nix flake lock
-nix flake check
+Graphical ISO подходит, но **не запускай Calamares**. Загрузись в live-систему и открой терминал.
 
-git add flake.lock
-git commit -m "chore: lock flake inputs"
-git push
-```
+### 1. Подключи интернет
 
-После этого версии Nixpkgs, Home Manager, Niri и iNiR будут зафиксированы.
-
-## Установка на уже работающий NixOS
-
-Сначала сохрани аппаратный конфиг:
-
-```bash
-sudo cp /etc/nixos/hardware-configuration.nix /tmp/hardware-configuration.nix
-```
-
-Затем установи репозиторий:
-
-```bash
-sudo mv /etc/nixos /etc/nixos.backup
-sudo git clone https://github.com/march-taylor/nix /etc/nixos
-sudo cp /tmp/hardware-configuration.nix \
-  /etc/nixos/hosts/desktop/hardware-configuration.nix
-sudo chown -R "$USER":users /etc/nixos
-
-cd /etc/nixos
-$EDITOR settings.nix
-nix flake lock
-```
-
-Сначала используй тестовую активацию:
-
-```bash
-sudo nixos-rebuild test --flake .#desktop
-```
-
-Если Niri и вход в систему работают:
-
-```bash
-sudo nixos-rebuild switch --flake .#desktop
-```
-
-Задай пароль пользователю, если он ещё не установлен:
-
-```bash
-sudo passwd march
-```
-
-Замени `march`, если изменил `settings.username`.
-
-## Чистая установка с официального NixOS ISO
-
-Самый надёжный первый путь — официальный graphical/minimal ISO NixOS 26.05 и этот Git-репозиторий.
-
-### 1. Загрузись с ISO и подключи интернет
-
-Для Wi-Fi в консоли можно использовать:
+Через интерфейс рабочего стола либо:
 
 ```bash
 nmtui
 ```
 
-### 2. Разметь и смонтируй диск
-
-Разметка уничтожает данные. Проверь имя диска через `lsblk` и не копируй команды вслепую.
-
-Для UEFI нужны как минимум:
-
-- EFI System Partition, FAT32, обычно 512 MiB–1 GiB;
-- корневой раздел, например ext4 или btrfs.
-
-Удобно использовать `cfdisk`:
+Проверь сеть:
 
 ```bash
-sudo -i
-lsblk
-cfdisk /dev/nvme0n1
+ping -c 3 cache.nixos.org
 ```
 
-После создания разделов отформатируй их. Пример для NVMe, где `p1` — EFI, `p2` — root:
+### 2. Получи репозиторий
+
+Репозиторий приватный, поэтому обычный анонимный `git clone` не сработает.
+
+Самый простой вариант для первой установки — временно сделать репозиторий публичным, затем:
 
 ```bash
-mkfs.fat -F 32 -n boot /dev/nvme0n1p1
-mkfs.ext4 -L nixos /dev/nvme0n1p2
-
-mount /dev/disk/by-label/nixos /mnt
-mkdir -p /mnt/boot
-mount /dev/disk/by-label/boot /mnt/boot
+cd /tmp
+git clone https://github.com/march-taylor/nix.git nix-config
+cd nix-config
 ```
 
-Для SATA-диска имена обычно выглядят как `/dev/sda1` и `/dev/sda2`.
+После установки репозиторий можно снова сделать приватным.
 
-### 3. Сгенерируй аппаратную конфигурацию
+Альтернатива: войти в GitHub через браузер live-системы, скачать ZIP репозитория, распаковать его и открыть распакованный каталог в терминале.
+
+### 3. Ещё раз проверь диски
 
 ```bash
-nixos-generate-config --root /mnt
-cp /mnt/etc/nixos/hardware-configuration.nix /tmp/hardware-configuration.nix
-rm -rf /mnt/etc/nixos
+lsblk -d -o NAME,SIZE,MODEL,SERIAL,TRAN
 ```
 
-### 4. Клонируй репозиторий
+Ожидается:
+
+```text
+nvme0n1  около 954G  ADATA LEGEND 960
+sda      около 115G  DataTraveler 3.0
+```
+
+Если имена или модель отличаются, **не запускай установщик** и сначала исправь `hosts/desktop/disko.nix`.
+
+### 4. Запусти защищённый установщик
+
+Из корня репозитория:
 
 ```bash
-git clone https://github.com/march-taylor/nix /mnt/etc/nixos
-cp /tmp/hardware-configuration.nix \
-  /mnt/etc/nixos/hosts/desktop/hardware-configuration.nix
-
-cd /mnt/etc/nixos
-nano settings.nix
-nix flake lock
+sudo bash ./install.sh
 ```
 
-Репозиторий сейчас приватный. В live ISO обычный HTTPS clone потребует GitHub credentials. Практичные варианты:
+Скрипт выполняет действия в таком порядке:
 
-- временно сделать репозиторий публичным на время установки;
-- использовать GitHub personal access token;
-- заранее собрать собственный ISO из этого репозитория;
-- положить копию репозитория на флешку рядом с ISO.
+1. Показывает все диски.
+2. Создаёт или обновляет `flake.lock`.
+3. Запускает `nix flake check --no-build`.
+4. Только после успешной проверки просит ввести:
 
-### 5. Установи систему
+   ```text
+   ERASE /dev/nvme0n1
+   ```
 
-```bash
-nixos-install --flake /mnt/etc/nixos#desktop
-```
+5. Размечает и форматирует NVMe через Disko.
+6. Копирует репозиторий в `/mnt/etc/nixos`.
+7. Выполняет `nixos-install`.
+8. Просит установить пароль root.
+9. Просит установить пароль пользователя `mart`.
 
-После установки задай пароль обычному пользователю:
+При любой ошибке оценки Nix диск ещё не изменяется.
 
-```bash
-nixos-enter --root /mnt -c 'passwd march'
-```
+### 5. Перезагрузка
 
-Затем перезагрузи компьютер:
+После сообщения об успешной установке:
 
 ```bash
 reboot
 ```
 
-## Первый запуск
+Извлеки флешку, когда компьютер начнёт перезагружаться.
 
-Вход выполняется через `greetd`/`tuigreet`, после чего запускается `niri-session`. iNiR стартует как user systemd service, привязанный именно к сессии Niri.
+## Первый вход
 
-Полезные команды диагностики:
+Войди пользователем:
+
+```text
+mart
+```
+
+После входа должны автоматически запуститься Niri и iNiR.
+
+Проверь:
 
 ```bash
 systemctl --user status inir.service
 inir logs --full
 niri msg version
-journalctl --user -u inir.service -b
 ```
 
-## Основные бинды
+Проверка графики RX 7800 XT:
 
-| Комбинация | Действие |
-|---|---|
-| `Mod+Return` | терминал Foot |
-| `Mod+E` | Nautilus |
-| `Mod+Space` | overview iNiR |
-| `Mod+V` | clipboard iNiR |
-| `Mod+,` | настройки iNiR |
-| `Mod+/` | cheatsheet iNiR |
-| `Mod+Alt+L` | lock screen |
-| `Mod+Shift+S` | снимок области |
-| `Mod+Q` | закрыть окно |
-| `Mod+H/J/K/L` | перемещать фокус |
-| `Mod+Shift+H/J/K/L` | перемещать окна/колонки |
+```bash
+vulkaninfo --summary
+glxinfo -B
+vainfo
+clinfo
+```
 
-Раскладка переключается через `Super+Space` и по умолчанию содержит `us,ru`.
+## После первого запуска
 
-## Ежедневные команды
+Конфигурация находится в:
+
+```text
+/etc/nixos
+```
+
+Зафиксируй созданный установщиком lock-файл:
+
+```bash
+cd /etc/nixos
+git status
+git add flake.lock
+git commit -m "chore: lock initial system inputs"
+git push
+```
+
+`flake.lock` фиксирует точные версии Nixpkgs, Home Manager, Niri, iNiR, Zen, AyuGram, Nixcord и Disko.
+
+## Применение изменений
+
+Безопасная тестовая активация:
+
+```bash
+cd /etc/nixos
+sudo nixos-rebuild test --flake .#desktop
+```
+
+Постоянная активация:
+
+```bash
+sudo nixos-rebuild switch --flake .#desktop
+```
+
+Перед переключением можно только собрать систему:
+
+```bash
+sudo nixos-rebuild build --flake .#desktop
+```
 
 Через `just`:
 
@@ -270,20 +243,9 @@ just check
 just build
 just test
 just switch
-just update
-just update-inir
 ```
 
-Без `just`:
-
-```bash
-nix flake check
-sudo nixos-rebuild build --flake .#desktop
-sudo nixos-rebuild test --flake .#desktop
-sudo nixos-rebuild switch --flake .#desktop
-```
-
-## Обновление
+## Обновления
 
 Обновить только iNiR:
 
@@ -292,10 +254,16 @@ cd /etc/nixos
 nix flake update inir
 sudo nixos-rebuild test --flake .#desktop
 sudo nixos-rebuild switch --flake .#desktop
-
 git add flake.lock
 git commit -m "chore: update iNiR"
-git push
+```
+
+Обновить отдельные приложения:
+
+```bash
+nix flake update zen-browser
+nix flake update ayugram-desktop
+nix flake update nixcord
 ```
 
 Обновить всё:
@@ -306,88 +274,113 @@ sudo nixos-rebuild test --flake .#desktop
 sudo nixos-rebuild switch --flake .#desktop
 ```
 
-Не используй `inir update` для Nix-установки: пакет контролируется flake input.
+Для Nix-установки iNiR не запускай `inir update`: версия управляется flake input.
 
 ## Откат
-
-Текущую тестовую конфигурацию можно отменить перезагрузкой. Для отката активной конфигурации:
 
 ```bash
 sudo nixos-rebuild switch --rollback
 ```
 
-Также предыдущие поколения доступны в меню systemd-boot.
+Предыдущие поколения также доступны в меню systemd-boot.
 
-Если проблема пришла из обновлённого `flake.lock`:
+Если проблема появилась после обновления inputs:
 
 ```bash
+cd /etc/nixos
 git restore --source=HEAD~1 flake.lock
 sudo nixos-rebuild switch --flake .#desktop
 ```
 
+## Структура
+
+```text
+.
+├── flake.nix
+├── flake.lock
+├── settings.nix
+├── install.sh
+├── hosts/
+│   └── desktop/
+│       ├── default.nix
+│       ├── disko.nix
+│       └── hardware-configuration.nix
+├── modules/
+│   ├── core/default.nix
+│   ├── hardware/default.nix
+│   ├── gaming/default.nix
+│   └── desktop/
+│       ├── default.nix
+│       └── niri.nix
+├── home/
+│   └── mart/
+│       ├── default.nix
+│       ├── programs.nix
+│       ├── discord.nix
+│       └── niri.nix
+├── installer/
+│   ├── iso.nix
+│   └── offline.nix
+└── docs/RICE.md
+```
+
+## iNiR и собственный rice
+
+Сейчас используется чистый upstream:
+
+```nix
+inir.url = "github:snowarch/iNiR";
+```
+
+Системный репозиторий и исходники rice лучше не смешивать:
+
+- `march-taylor/nix` — система, пакеты, Home Manager, Disko и ISO;
+- будущий `march-taylor/inir-rice` — fork iNiR с QML, JS и собственными модулями.
+
+Для перехода на fork достаточно изменить input:
+
+```nix
+inir.url = "github:march-taylor/inir-rice";
+```
+
+Локальная разработка без изменения `flake.nix`:
+
+```bash
+sudo nixos-rebuild test --flake .#desktop \
+  --override-input inir path:/home/mart/projects/inir-rice
+```
+
+Подробности: [`docs/RICE.md`](docs/RICE.md).
+
 ## Сборка собственного ISO
 
-Сетевой installer содержит этот репозиторий и установочные инструменты, но пакеты целевой системы при установке могут скачиваться:
+Сетевой ISO:
 
 ```bash
 nix build .#installer-iso
-ls result/iso/
 ```
 
-Offline-образ дополнительно включает closure `nixosConfigurations.desktop` и исходники flake inputs:
+Offline ISO с closure целевой системы:
 
 ```bash
 nix build .#offline-installer-iso
-ls result/iso/
 ```
 
-Offline ISO заметно больше и привязан к текущему `flake.lock` и целевой конфигурации. Обязательно проверь его в виртуальной машине перед реальной установкой.
-
-После загрузки собственного ISO копия репозитория находится по адресу:
+Образ появится в:
 
 ```text
-/etc/nixos-template
+result/iso/
 ```
-
-Она находится в Nix store и доступна только для чтения. Для установки сделай writable-копию:
-
-```bash
-cp -rL /etc/nixos-template /tmp/nixos-config
-chmod -R u+w /tmp/nixos-config
-```
-
-После монтирования целевой системы скопируй конфиг в `/mnt/etc/nixos`, замени `hardware-configuration.nix` и запускай `nixos-install`.
-
-## Свой rice
-
-Системный репозиторий и исходники оболочки лучше держать отдельно:
-
-- `march-taylor/nix` — NixOS, Home Manager, выбор версии iNiR;
-- отдельный fork iNiR — QML, JavaScript, скрипты и визуальные модули rice.
-
-Так системные коммиты не смешиваются с тысячами upstream-файлов оболочки, а обновления iNiR можно вливать обычным merge/rebase. См. [`docs/RICE.md`](docs/RICE.md).
 
 ## Секреты
 
-Не помещай в обычные `.nix` файлы:
+Не добавляй напрямую в репозиторий:
 
-- пароли;
-- Wi-Fi PSK;
+- Wi-Fi пароли;
 - API-токены;
 - приватные SSH-ключи;
-- cookies и browser profiles.
+- пароли пользователей;
+- KeePass-базу;
+- browser profiles.
 
-Flake source и построенные конфигурации попадают в `/nix/store`, который нельзя считать секретным хранилищем. Для будущих секретов используй `sops-nix` или `agenix`.
-
-## Что нужно адаптировать под железо
-
-Обязательно проверь:
-
-- `hosts/desktop/hardware-configuration.nix`;
-- драйвер NVIDIA, если используется NVIDIA;
-- имена и масштаб мониторов в `home/march/niri.nix`;
-- раскладки клавиатуры;
-- `settings.nix`;
-- необходимость шифрования и выбранную файловую систему.
-
-Для NVIDIA лучше добавить отдельный модуль после того, как будет известна точная модель GPU и режим hybrid/offload.
+Для будущего декларативного управления секретами используй `sops-nix` или `agenix`.
