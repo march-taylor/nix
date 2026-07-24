@@ -162,27 +162,52 @@ EOF
         \( -name '*.qml' -o -name '*.js' \) \
         -exec sed -i 's#/usr/bin/##g' {} +
 
-      # Fail the build rather than install another incomplete shell.
+      # Quickshell currently fails to resolve KDE modules from the environment
+      # path alone. Create a stable local QML import root inside the packaged
+      # configuration, using modules from the exact Qt closure which built the
+      # upstream Quickshell. This also covers org.kde.syntaxhighlighting.
+      qml_root="$runtime/qml"
+      mkdir -p "$qml_root/org/kde"
+
+      for dependency in ${lib.escapeShellArgs (map toString upstreamInirRuntimePackages)}; do
+        while IFS= read -r qmldir; do
+          module_dir="$(dirname "$qmldir")"
+          relative="$(printf '%s\n' "$module_dir" | sed -E 's#^.*/lib/qt-6/qml/##')"
+          [ "$relative" != "$module_dir" ] || continue
+
+          target="$qml_root/$relative"
+          if [ ! -e "$target" ]; then
+            mkdir -p "$(dirname "$target")"
+            ln -s "$module_dir" "$target"
+          fi
+        done < <(find "$dependency" -type f -path '*/lib/qt-6/qml/org/kde/*/qmldir' -print 2>/dev/null || true)
+      done
+
+      # Fail at build time instead of shipping a runtime that can only enter a
+      # systemd restart loop.
       test -f "$runtime/shell.qml"
       test -f "$runtime/settings.qml"
       test -f "$runtime/defaults/config.json"
       test -d "$runtime/modules"
       test -d "$runtime/services"
+      test -f "$qml_root/org/kde/kirigami/qmldir"
       test -x "$out/bin/inir"
     '';
 
     postFixup = (oldAttrs.postFixup or "") + ''
-      # Preserve upstream's wrapper and add the QML/plugin paths from the exact
-      # Qt stack which built Quickshell. Prefix both variable names because Qt 6
-      # loaders in the wild still differ in which one they inspect.
+      # Put the bundled QML root first. Keep the complete upstream import and
+      # plugin paths as fallbacks for Qt modules outside org.kde.*.
       wrapProgram "$out/bin/inir" \
-        --prefix QML_IMPORT_PATH : "${inirQmlPath}" \
-        --prefix QML2_IMPORT_PATH : "${inirQmlPath}" \
+        --prefix QML_IMPORT_PATH : "$out/share/quickshell/inir/qml:${inirQmlPath}" \
+        --prefix QML2_IMPORT_PATH : "$out/share/quickshell/inir/qml:${inirQmlPath}" \
         --prefix QT_PLUGIN_PATH : "${inirQtPluginPath}" \
         --set-default INIR_VENV "${inirVenv}" \
         --set-default ILLOGICAL_IMPULSE_VIRTUAL_ENV "${inirVenv}"
     '';
   });
+
+  inirBundledQmlPath = "${inirPackage}/share/quickshell/inir/qml";
+  inirFullQmlPath = "${inirBundledQmlPath}:${inirQmlPath}";
 in
 {
   programs.niri.enable = true;
@@ -199,10 +224,11 @@ in
       ++ inirRuntimePackages;
   };
 
-  # The unit receives the same ABI-matched QML paths as the launcher wrapper.
+  # The unit receives the bundled module root first, followed by the full
+  # ABI-matched upstream Qt paths.
   systemd.user.services.inir.environment = {
-    QML_IMPORT_PATH = inirQmlPath;
-    QML2_IMPORT_PATH = inirQmlPath;
+    QML_IMPORT_PATH = inirFullQmlPath;
+    QML2_IMPORT_PATH = inirFullQmlPath;
     QT_PLUGIN_PATH = inirQtPluginPath;
     INIR_VENV = "${inirVenv}";
     ILLOGICAL_IMPULSE_VIRTUAL_ENV = "${inirVenv}";
