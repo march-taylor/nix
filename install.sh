@@ -144,14 +144,14 @@ mount_existing_target() {
 }
 
 echo
-echo "==> Locking and evaluating the configuration before disk changes"
+echo "==> Locking and evaluating the configuration"
 cd "${REPO_ROOT}"
 lock_flake
 nix flake check --no-build --show-trace
 
 if [[ ${RESUME} == true ]]; then
   echo
-echo "==> Resume mode: keeping the existing partition table and filesystems"
+  echo "==> Resume mode: keeping the existing partition table and filesystems"
   mount_existing_target
 else
   echo
