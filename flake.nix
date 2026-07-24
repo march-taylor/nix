@@ -27,10 +27,9 @@
 
     niri.url = "github:sodiboo/niri-flake";
 
-    inir = {
-      url = "github:snowarch/iNiR";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    # Keep iNiR on the package set selected by its own flake. Upstream's NixOS
+    # module is designed around inputs.inir.packages.${system}.default.
+    inir.url = "github:snowarch/iNiR";
 
     nixcord = {
       url = "github:4evy/nixcord";
