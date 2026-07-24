@@ -1,4 +1,9 @@
-{ modulesPath, pkgs, inputs, ... }:
+{
+  modulesPath,
+  pkgs,
+  inputs,
+  ...
+}:
 {
   imports = [
     "${modulesPath}/installer/cd-dvd/installation-cd-minimal.nix"
@@ -7,16 +12,24 @@
   networking.hostName = "nixos-installer";
   networking.networkmanager.enable = true;
 
-  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  nix.settings.experimental-features = [
+    "nix-command"
+    "flakes"
+  ];
 
-  environment.systemPackages = with pkgs; [
+  environment.systemPackages = (with pkgs; [
     git
     vim
     nano
     just
+    rsync
     parted
     gptfdisk
     dosfstools
+    btrfs-progs
+    nvme-cli
+  ]) ++ [
+    inputs.disko.packages.${pkgs.stdenv.hostPlatform.system}.disko
   ];
 
   environment.etc."nixos-template".source = inputs.self;
