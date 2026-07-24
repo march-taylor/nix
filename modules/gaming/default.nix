@@ -14,5 +14,6 @@
     goverlay
     protonup-qt
     prismlauncher
+    steamguard-cli
   ];
 }
