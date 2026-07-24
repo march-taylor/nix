@@ -1,12 +1,4 @@
 { lib, ... }:
-let
-  btrfsOptions = [
-    "compress=zstd:3"
-    "noatime"
-    "ssd"
-    "discard=async"
-  ];
-in
 {
   # WARNING: applying this file destroys every partition on /dev/nvme0n1.
   # The Kingston USB drive /dev/sda is intentionally not referenced here.
@@ -32,34 +24,14 @@ in
           root = {
             size = "100%";
             content = {
-              type = "btrfs";
+              type = "filesystem";
+              format = "ext4";
+              mountpoint = "/";
               extraArgs = [
-                "-f"
+                "-F"
                 "-L"
                 "nixos"
               ];
-              subvolumes = {
-                "@root" = {
-                  mountpoint = "/";
-                  mountOptions = btrfsOptions;
-                };
-                "@home" = {
-                  mountpoint = "/home";
-                  mountOptions = btrfsOptions;
-                };
-                "@nix" = {
-                  mountpoint = "/nix";
-                  mountOptions = btrfsOptions;
-                };
-                "@log" = {
-                  mountpoint = "/var/log";
-                  mountOptions = btrfsOptions;
-                };
-                "@snapshots" = {
-                  mountpoint = "/.snapshots";
-                  mountOptions = btrfsOptions;
-                };
-              };
             };
           };
         };
