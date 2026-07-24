@@ -11,7 +11,11 @@
   home.stateVersion = settings.stateVersion;
 
   programs.home-manager.enable = true;
-  xdg.enable = true;
+
+  xdg = {
+    enable = true;
+    autostart.enable = true;
+  };
 
   home.sessionVariables = {
     BROWSER = "zen";
