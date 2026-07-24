@@ -13,11 +13,27 @@
   services.dbus.enable = true;
   security.polkit.enable = true;
 
+  services.gvfs.enable = true;
+  services.udisks2.enable = true;
+  services.printing.enable = true;
+  services.gnome.gnome-keyring.enable = true;
+  security.pam.services.greetd.enableGnomeKeyring = true;
+  programs.dconf.enable = true;
+
   fonts.packages = with pkgs; [
     nerd-fonts.jetbrains-mono
+    rubik
     noto-fonts
     noto-fonts-cjk-sans
     noto-fonts-color-emoji
+  ];
+
+  environment.systemPackages = with pkgs; [
+    gnome-keyring
+    seahorse
+    gparted
+    ntfs3g
+    exfatprogs
   ];
 
   environment.sessionVariables = {
