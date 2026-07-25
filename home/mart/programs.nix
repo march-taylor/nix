@@ -30,6 +30,15 @@ let
     ClearClipboardTimeout=15
     LockDatabaseScreenLock=true
   '';
+  vscodiumInitialSettings = pkgs.writeText "vscodium-initial-settings.json" (builtins.toJSON {
+    "window.titleBarStyle" = "custom";
+    "window.commandCenter" = true;
+    "editor.fontFamily" = "JetBrainsMono Nerd Font";
+    "editor.fontLigatures" = true;
+    "terminal.integrated.fontFamily" = "JetBrainsMono Nerd Font";
+    "telemetry.telemetryLevel" = "off";
+    "update.mode" = "none";
+  });
 in
 {
   home.packages = [
@@ -38,6 +47,13 @@ in
   ]
   ++ (with pkgs; [
     pear-desktop
+
+    aseprite
+    krita
+    kdePackages.kdenlive
+    element-desktop
+    reaper
+    codex
 
     kdePackages.dolphin
     kdePackages.ark
@@ -89,16 +105,27 @@ in
   programs.vscodium = {
     enable = true;
     mutableExtensionsDir = true;
-    profiles.default.userSettings = {
-      "window.titleBarStyle" = "custom";
-      "window.commandCenter" = true;
-      "editor.fontFamily" = "JetBrainsMono Nerd Font";
-      "editor.fontLigatures" = true;
-      "terminal.integrated.fontFamily" = "JetBrainsMono Nerd Font";
-      "telemetry.telemetryLevel" = "off";
-      "update.mode" = "none";
-    };
   };
+
+  # iNiR updates VSCodium's color theme in settings.json. Keep the initial
+  # preferences reproducible, then leave the actual file writable for iNiR and
+  # VSCodium instead of linking it to the read-only Nix store.
+  home.activation.seedMutableVSCodiumSettings = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    settings_file="${config.xdg.configHome}/VSCodium/User/settings.json"
+    ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname "$settings_file")"
+
+    if [ -L "$settings_file" ]; then
+      tmp="$(${pkgs.coreutils}/bin/mktemp)"
+      ${pkgs.coreutils}/bin/cp --dereference "$settings_file" "$tmp"
+      ${pkgs.coreutils}/bin/rm -f "$settings_file"
+      ${pkgs.coreutils}/bin/cp "$tmp" "$settings_file"
+      ${pkgs.coreutils}/bin/rm -f "$tmp"
+      ${pkgs.coreutils}/bin/chmod u+w "$settings_file"
+    elif [ ! -e "$settings_file" ]; then
+      ${pkgs.coreutils}/bin/cp "${vscodiumInitialSettings}" "$settings_file"
+      ${pkgs.coreutils}/bin/chmod u+w "$settings_file"
+    fi
+  '';
 
   programs.keepassxc = {
     enable = true;
@@ -143,7 +170,30 @@ in
       scrollback_lines = 10000;
       wayland_titlebar_color = "system";
     };
+    # iNiR atomically updates current-theme.conf. Declaring the include here
+    # avoids its generator trying to edit Home Manager's read-only kitty.conf.
+    extraConfig = ''
+      include current-theme.conf
+    '';
   };
+
+  home.activation.seedKittyThemeFile = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    theme_file="${config.xdg.configHome}/kitty/current-theme.conf"
+    if [ ! -e "$theme_file" ]; then
+      ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname "$theme_file")"
+      ${pkgs.coreutils}/bin/touch "$theme_file"
+    fi
+  '';
+
+  # KIO/Dolphin reads these keys from kdeglobals. The iNiR KDE theme generator
+  # also preserves TerminalApplication=kitty, so changing colors cannot restore
+  # the xterm fallback.
+  home.activation.configureDolphinTerminal = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 \
+      --file kdeglobals --group General --key TerminalApplication kitty
+    ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 \
+      --file kdeglobals --group General --key TerminalService --delete
+  '';
 
   programs.bash.enable = true;
   programs.fish.enable = true;
