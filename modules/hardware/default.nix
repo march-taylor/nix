@@ -29,6 +29,24 @@
   services.upower.enable = true;
   services.power-profiles-daemon.enable = true;
 
+  # Some Gigabyte firmware exposes GPP0 as an always-firing ACPI wake source.
+  # /proc/acpi/wakeup uses toggle semantics, so only write when it is enabled.
+  systemd.services.disable-gpp0-wakeup = {
+    description = "Disable enabled GPP0 ACPI wake source";
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      if [ -r /proc/acpi/wakeup ] \
+        && ${pkgs.gnugrep}/bin/grep -qE '^GPP0[[:space:]].*\*enabled' /proc/acpi/wakeup
+      then
+        echo GPP0 > /proc/acpi/wakeup
+      fi
+    '';
+  };
+
   environment.systemPackages = with pkgs; [
     vulkan-tools
     libva-utils
