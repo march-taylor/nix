@@ -57,6 +57,12 @@
 
   # ext4 on NVMe only needs periodic TRIM; there are no Btrfs scrub/snapshot jobs.
   services = {
+    # SDDM needs Xorg, but the fallback xterm desktop/session is unwanted.
+    xserver = {
+      desktopManager.xterm.enable = false;
+      excludePackages = [ pkgs.xterm ];
+    };
+
     fstrim.enable = true;
     flatpak.enable = true;
 
