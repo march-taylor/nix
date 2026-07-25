@@ -231,14 +231,30 @@ EOF
     '';
 
     postFixup = (oldAttrs.postFixup or "") + ''
-      # Put the bundled QML root first. Keep the complete upstream import and
-      # plugin paths as fallbacks for Qt modules outside org.kde.*.
-      wrapProgram "$out/bin/inir" \
-        --prefix QML_IMPORT_PATH : "$out/share/quickshell/inir/qml:${inirQmlPath}" \
-        --prefix QML2_IMPORT_PATH : "$out/share/quickshell/inir/qml:${inirQmlPath}" \
-        --prefix QT_PLUGIN_PATH : "${inirQtPluginPath}" \
-        --set-default INIR_VENV "${inirVenv}" \
-        --set-default ILLOGICAL_IMPULSE_VIRTUAL_ENV "${inirVenv}"
+      # The full QML/plugin search path is needed when starting a shell process,
+      # but it makes every short-lived `qs --version` and `qs ipc call` client
+      # pay a very large Qt startup cost. Scope it to commands that actually
+      # launch QML; keep status, IPC targets, terminal and close-window lean.
+      mv "$out/bin/inir" "$out/bin/.inir-launcher"
+      cat > "$out/bin/inir" <<EOF
+#!${pkgs.bash}/bin/bash
+export INIR_VENV="${inirVenv}"
+export ILLOGICAL_IMPULSE_VIRTUAL_ENV="${inirVenv}"
+
+case "\''${1:-}" in
+  run|start|restart|repair|settings-window|waffle-settings-window|welcome|test-local)
+    export QML_IMPORT_PATH="$out/share/quickshell/inir/qml:${inirQmlPath}"
+    export QML2_IMPORT_PATH="$out/share/quickshell/inir/qml:${inirQmlPath}"
+    export QT_PLUGIN_PATH="${inirQtPluginPath}"
+    ;;
+  *)
+    unset QML_IMPORT_PATH QML2_IMPORT_PATH QT_PLUGIN_PATH
+    ;;
+esac
+
+exec "$out/bin/.inir-launcher" "\$@"
+EOF
+      chmod +x "$out/bin/inir"
     '';
   });
 
