@@ -23,7 +23,10 @@ let
   };
 in
 {
-  imports = [ ./niri.nix ];
+  imports = [
+    ./niri.nix
+    ./inir-runtime.nix
+  ];
 
   # Use the mature X11 SDDM greeter. Keep its login layout deliberately simple;
   # Niri itself provides US/Russian switching after login.
