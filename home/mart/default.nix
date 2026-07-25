@@ -6,6 +6,7 @@
     ./niri.nix
     ./niri-fixes.nix
     ./inir.nix
+    ./no-network-tray.nix
   ];
 
   home.username = settings.username;
