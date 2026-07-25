@@ -3,25 +3,6 @@
   settings,
   ...
 }:
-let
-  # Throne 1.1.2 accidentally disables UDP on the authenticated local Xray
-  # SOCKS5 inbound. sing-box accepts UDP from the TUN interface, but Xray then
-  # drops it internally, leaving Discord voice stuck on RTC Connecting and
-  # breaking other UDP applications. Arch's source package carries the same
-  # downstream fix; keep it here until nixpkgs/upstream includes it.
-  throneWithUdp = pkgs.throne.overrideAttrs (oldAttrs: {
-    postPatch = (oldAttrs.postPatch or "") + ''
-      matches="$(${pkgs.gnugrep}/bin/grep -Foc '{"udp", false}' src/configs/generate.cpp)"
-      if [ "$matches" -ne 1 ]; then
-        echo "ERROR: expected exactly one disabled Xray UDP inbound, found $matches" >&2
-        exit 1
-      fi
-
-      substituteInPlace src/configs/generate.cpp \
-        --replace-fail '{"udp", false}' '{"udp", true}'
-    '';
-  });
-in
 {
   networking.hostName = settings.hostname;
   networking.networkmanager.enable = true;
@@ -109,7 +90,6 @@ in
     # NixOS wrapper rather than the less secure setuid fallback.
     throne = {
       enable = true;
-      package = throneWithUdp;
       tunMode.enable = true;
     };
   };
