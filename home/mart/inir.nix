@@ -6,6 +6,24 @@
   pkgs,
   ...
 }:
+let
+  # These are defaults only. The activation merge uses the existing user JSON
+  # as the right-hand side, so every explicit user value wins.
+  inirThemeIntegrationDefaults = pkgs.writeText "inir-theme-integration-defaults.json" (builtins.toJSON {
+    appearance.wallpaperTheming = {
+      enableAppsAndShell = true;
+      enableQtApps = true;
+      enableTerminal = true;
+      enableVesktop = true;
+      enableChrome = true;
+      enableVSCode = true;
+      enableSteam = true;
+      enablePearDesktop = true;
+      terminals.kitty = true;
+      vscodeEditors.codium = true;
+    };
+  });
+in
 {
   imports = [ inputs.inir.homeModules.inir ];
 
@@ -18,6 +36,48 @@
     service.enable = false;
     configSymlink.enable = true;
   };
+
+  # Keep the complete user config mutable. On a fresh install copy defaults once;
+  # on existing systems add only missing integration keys and preserve every
+  # explicit setting. Store a content-addressed backup before any merge.
+  home.activation.prepareMutableInirConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    config_dir="${config.xdg.configHome}/illogical-impulse"
+    config_file="$config_dir/config.json"
+    backup_dir="${config.home.homeDirectory}/.local/state/inir/config-backups"
+
+    ${pkgs.coreutils}/bin/mkdir -p "$config_dir" "$backup_dir"
+
+    if [ ! -e "$config_file" ]; then
+      ${pkgs.coreutils}/bin/cp \
+        "${osConfig.programs.inir.package}/share/quickshell/inir/defaults/config.json" \
+        "$config_file"
+      ${pkgs.coreutils}/bin/chmod u+w "$config_file"
+    fi
+
+    if ${pkgs.jq}/bin/jq empty "$config_file" >/dev/null 2>&1; then
+      hash="$(${pkgs.coreutils}/bin/sha256sum "$config_file" | ${pkgs.coreutils}/bin/cut -d' ' -f1)"
+      backup="$backup_dir/config-$hash.json"
+      if [ ! -e "$backup" ]; then
+        ${pkgs.coreutils}/bin/cp "$config_file" "$backup"
+      fi
+
+      tmp="$(${pkgs.coreutils}/bin/mktemp "$config_dir/config.json.XXXXXX")"
+      if ${pkgs.jq}/bin/jq \
+        --slurpfile defaults "${inirThemeIntegrationDefaults}" \
+        '$defaults[0] * .' \
+        "$config_file" > "$tmp"
+      then
+        ${pkgs.coreutils}/bin/chmod --reference="$config_file" "$tmp"
+        if ! ${pkgs.diffutils}/bin/cmp -s "$config_file" "$tmp"; then
+          ${pkgs.coreutils}/bin/mv "$tmp" "$config_file"
+        else
+          ${pkgs.coreutils}/bin/rm -f "$tmp"
+        fi
+      else
+        ${pkgs.coreutils}/bin/rm -f "$tmp"
+      fi
+    fi
+  '';
 
   # `inir doctor` targets the mutable repo installer. On NixOS its auto-fixes
   # can shadow the wrapped launcher and point shells at a nonexistent mutable
