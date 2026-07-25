@@ -109,7 +109,7 @@ in
         PartOf = [ "graphical-session.target" ];
       };
       Service = {
-        ExecStart = "/run/current-system/sw/bin/throne";
+        ExecStart = "/run/current-system/sw/bin/Throne";
         Restart = "on-failure";
         RestartSec = 3;
       };
