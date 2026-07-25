@@ -4,6 +4,8 @@
   ...
 }:
 {
+  imports = [ ./throne-compat.nix ];
+
   networking.hostName = settings.hostname;
   networking.networkmanager.enable = true;
   networking.firewall.enable = true;
