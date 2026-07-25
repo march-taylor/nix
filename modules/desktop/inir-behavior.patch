@@ -1,0 +1,85 @@
+diff --git a/shell.qml b/shell.qml
+index d130736..1f5af42 100644
+--- a/shell.qml
++++ b/shell.qml
+@@ -292,16 +292,9 @@ Scope {
+                 Quickshell.execDetached([Quickshell.shellPath("scripts/inir"),
+                     "waffle-settings-window"])
+-            } else if (Config.options?.settingsUi?.overlayMode ?? false) {
+-                // ii overlay mode — toggle inline panel
++            } else {
++                // Material ii always uses the inline overlay. The standalone
++                // settings.qml process remains available through settings-window.
+                 GlobalStates.settingsOverlayOpen = !GlobalStates.settingsOverlayOpen
+-            } else {
+-                // ii window mode (default) — launch separate process
+-                Quickshell.execDetached([Quickshell.shellPath("scripts/inir"),
+-                    "settings-window"])
+             }
+         }
+         function toggle(): void {
+@@ -311,7 +304,7 @@ Scope {
+ 
+     // Settings overlay panel (loaded only when overlay mode is enabled)
+     LazyLoader {
+-        active: Config.ready && (Config.options?.settingsUi?.overlayMode ?? false)
++        active: Config.ready && (Config.options?.panelFamily ?? "ii") !== "waffle"
+         component: SettingsOverlay {}
+     }
+ 
+diff --git a/modules/common/Config.qml b/modules/common/Config.qml
+index bd9beb9..2c8f502 100644
+--- a/modules/common/Config.qml
++++ b/modules/common/Config.qml
+@@ -682,6 +682,7 @@ Singleton {
+                 property JsonObject palette: JsonObject {
+                     property string type: "auto" // Allowed: auto, scheme-content, scheme-expressive, scheme-fidelity, scheme-fruit-salad, scheme-monochrome, scheme-neutral, scheme-rainbow, scheme-tonal-spot
+                     property string accentColor: "" // Seed color hex for scheme variant (e.g. "#ab1234"), empty = use theme primary
++                    property string mode: "auto" // auto | dark | light; persists the dark/light toggle across shell restarts
+                 }
+                 property JsonObject typography: JsonObject {
+                     property string mainFont: "Roboto Flex"
+diff --git a/defaults/config.json b/defaults/config.json
+index 69721be..0744d8b 100644
+--- a/defaults/config.json
++++ b/defaults/config.json
+@@ -108,7 +108,8 @@
+         },
+         "palette": {
+             "type": "auto",
+-            "accentColor": ""
++            "accentColor": "",
++            "mode": "auto"
+         },
+         "angel": {
+             "blur": {
+diff --git a/services/MaterialThemeLoader.qml b/services/MaterialThemeLoader.qml
+index 72999d5..1667db2 100644
+--- a/services/MaterialThemeLoader.qml
++++ b/services/MaterialThemeLoader.qml
+@@ -50,6 +50,7 @@ Singleton {
+ 
+     // Toggle dark/light mode by running switchwall.sh with --mode and scheduling a reload.
+     function setDarkMode(dark: bool): void {
++        Config.setNestedValue("appearance.palette.mode", dark ? "dark" : "light")
+         darkModeProc.command = [
+             "/usr/bin/bash",
+             Directories.wallpaperSwitchScriptPath,
+diff --git a/services/ThemeService.qml b/services/ThemeService.qml
+index 17cb653..e1797ce 100644
+--- a/services/ThemeService.qml
++++ b/services/ThemeService.qml
+@@ -178,10 +178,13 @@ Singleton {
+         if (isAutoTheme) {
+             // Force full regeneration from wallpaper (includes terminals, GTK, etc)
+             const themingPath = Wallpapers.currentThemingWallpaperPath()
+             const paletteType = Config.options?.appearance?.palette?.type ?? "auto"
++            const colorMode = Config.options?.appearance?.palette?.mode ?? "auto"
+             const command = [Directories.wallpaperSwitchScriptPath, "--noswitch"]
+             if (paletteType !== "auto")
+                 command.push("--type", paletteType)
++            if (colorMode === "dark" || colorMode === "light")
++                command.push("--mode", colorMode)
+             if (themingPath && themingPath.length > 0)
+                 command.push("--image", themingPath)
+             Quickshell.execDetached(command);
