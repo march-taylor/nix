@@ -59,6 +59,16 @@
   services = {
     fstrim.enable = true;
     flatpak.enable = true;
+
+    syncthing = {
+      enable = true;
+      user = settings.username;
+      group = "users";
+      dataDir = "/home/${settings.username}/Sync";
+      configDir = "/home/${settings.username}/.config/syncthing";
+      guiAddress = "127.0.0.1:8384";
+      openDefaultPorts = true;
+    };
   };
 
   programs = {
