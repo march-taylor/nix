@@ -66,3 +66,13 @@
 +            if (colorMode === "dark" || colorMode === "light")
 +                command.push("--mode", colorMode)
              if (themingPath && themingPath.length > 0)
+--- a/scripts/colors/apply-gtk-theme.sh
++++ b/scripts/colors/apply-gtk-theme.sh
+@@ -576,6 +576,7 @@
+ [General]
+ ColorScheme=Darkly
+ Name=Darkly
++TerminalApplication=kitty
+ shadeSortColumn=true
+ 
+ [KDE]
