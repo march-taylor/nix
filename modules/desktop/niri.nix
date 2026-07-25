@@ -158,6 +158,8 @@ EOF
   # Keep upstream's package, launcher and module behavior. Patch only current
   # packaging defects in the flake output.
   inirPackage = upstreamInirPackage.overrideAttrs (oldAttrs: {
+    patches = (oldAttrs.patches or [ ]) ++ [ ./inir-behavior.patch ];
+
     postPatch = (oldAttrs.postPatch or "") + ''
       sed -i '1c\#!${pkgs.python3}/bin/python3' \
         scripts/hyprland/get_keybinds.py \
