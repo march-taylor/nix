@@ -56,6 +56,12 @@ in
     codex
     uv
 
+    # nodejs provides both `node` and `npm`.
+    nodejs
+    osu-lazer-bin
+    obsidian
+    anki-bin
+
     kdePackages.dolphin
     kdePackages.ark
     kdePackages.kio-admin
