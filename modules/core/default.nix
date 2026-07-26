@@ -83,6 +83,14 @@
     fish.enable = true;
     git.enable = true;
     nix-ld.enable = true;
+
+    # Gradle-based Minecraft mod development uses Java 21. The NixOS Java
+    # module installs the full JDK and exports JAVA_HOME for all login shells.
+    java = {
+      enable = true;
+      package = pkgs.jdk21;
+    };
+
     appimage = {
       enable = true;
       binfmt = true;
