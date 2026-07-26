@@ -8,7 +8,18 @@
 
   networking.hostName = settings.hostname;
   networking.networkmanager.enable = true;
-  networking.firewall.enable = true;
+  networking.firewall = {
+    enable = true;
+
+    # Minecraft server.
+    allowedTCPPorts = [ 25565 ];
+
+    # Simple Voice Chat and Webcam mod use separate UDP sockets.
+    allowedUDPPorts = [
+      24454
+      25454
+    ];
+  };
 
   time.timeZone = settings.timezone;
   i18n.defaultLocale = settings.locale;
