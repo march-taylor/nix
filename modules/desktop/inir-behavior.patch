@@ -29,6 +29,17 @@
 +        active: Config.ready && (Config.options?.panelFamily ?? "ii") !== "waffle"
          component: SettingsOverlay {}
      }
+--- a/modules/bar/BarContent.qml
++++ b/modules/bar/BarContent.qml
+@@ -64,7 +64,7 @@
+                 monochromeIcon: true,
+                 text: Translation.tr("Settings"),
+                 action: () => {
+-                    Quickshell.execDetached([Quickshell.shellPath("scripts/inir"), "settings"])
++                    GlobalStates.settingsOverlayOpen = !GlobalStates.settingsOverlayOpen
+                 },
+             },
+         ]
 --- a/modules/common/Config.qml
 +++ b/modules/common/Config.qml
 @@ -1,4 +1,5 @@
