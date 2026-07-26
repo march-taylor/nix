@@ -23,19 +23,51 @@ let
       vscodeEditors.codium = true;
     };
   });
+
+  inirPackage = osConfig.programs.inir.package;
+  inirRuntime = "${inirPackage}/share/quickshell/inir";
+  inirRuntimeDependencies = inirPackage.passthru.runtimeDependencies or [ ];
+  inirQuickshell = lib.findFirst
+    (package: (package.pname or "") == "quickshell")
+    pkgs.quickshell
+    inirRuntimeDependencies;
+
+  # Quickshell identifies an IPC instance by its shell path. Always use the
+  # exact Nix-store runtime used by inir.service rather than a Home Manager
+  # symlink that may resolve to a different generation after login or rebuild.
+  inirCli = pkgs.writeShellApplication {
+    name = "inir";
+    runtimeInputs = [ pkgs.systemd ];
+    text = ''
+      runtime="${inirRuntime}"
+      export INIR_RUNTIME_DIR="$runtime"
+      export INIR_SYSTEM_RUNTIME_DIR="$runtime"
+      export INIR_FALLBACK_SYSTEM_RUNTIME_DIR="$runtime"
+
+      if [ "''${1:-}" = "settings" ]; then
+        exec ${inirQuickshell}/bin/qs -p "$runtime" ipc call settings open
+      fi
+
+      exec ${inirPackage}/bin/inir "$@"
+    '';
+  };
 in
 {
   imports = [ inputs.inir.homeModules.inir ];
 
-  # Use exactly the package configured by the NixOS iNiR module. Home Manager
-  # only exposes it in the user profile and creates the traditional Quickshell
-  # config symlink; the NixOS module remains the sole owner of inir.service.
-  programs.inir = {
-    enable = true;
-    package = osConfig.programs.inir.package;
-    service.enable = false;
-    configSymlink.enable = true;
-  };
+  # The NixOS module is the sole owner of the package and inir.service. Home
+  # Manager only supplies a deterministic CLI wrapper and mutable user config.
+  # In particular, do not recreate ~/.config/quickshell/inir: using that symlink
+  # for IPC while the service uses the store path creates a second shell ID.
+  programs.inir.enable = false;
+  home.packages = [ inirCli ];
+
+  home.activation.removeLegacyInirRuntimeSymlink = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    runtime_link="${config.xdg.configHome}/quickshell/inir"
+    if [ -L "$runtime_link" ]; then
+      ${pkgs.coreutils}/bin/rm -f "$runtime_link"
+    fi
+  '';
 
   # Keep the complete user config mutable. On a fresh install copy defaults once;
   # on existing systems add only missing integration keys and preserve every
