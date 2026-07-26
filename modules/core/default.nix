@@ -32,6 +32,18 @@
     auto-optimise-store = true;
     max-jobs = "auto";
     cores = 0;
+
+    # These caches are also advertised by flake.nix. Register them in the
+    # system daemon so unprivileged `nix develop` calls may use them without
+    # requiring the user to be a Nix trusted-user.
+    extra-substituters = [
+      "https://ayugram-desktop.cachix.org"
+      "https://tg-owt.cachix.org"
+    ];
+    extra-trusted-public-keys = [
+      "ayugram-desktop.cachix.org-1:AZ5EqHrJsAKL5YkZYLPEsb1FdD9QlypUwQ0REcJftgA="
+      "tg-owt.cachix.org-1:lp0BukIhSK3EIyLcDhDZ5zABgT48nmNp6t4SnZ0wr8w="
+    ];
   };
   nix.gc = {
     automatic = true;
