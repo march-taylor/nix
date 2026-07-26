@@ -86,6 +86,15 @@
         libusb1
       ];
 
+      # PyTorch's ROCm wheels provide most user-space components themselves, but
+      # still need the host AMD driver nodes and a few dynamic libraries exposed
+      # in a conventional layout when running on NixOS.
+      rocmRuntimeLibs = with pkgs; [
+        (lib.getLib stdenv.cc.cc)
+        zlib
+        rocmPackages.clr
+      ];
+
       mkHost =
         hostModule:
         nixpkgs.lib.nixosSystem {
@@ -127,6 +136,20 @@
 
         JAVA_HOME = "${pkgs.jdk21}/lib/openjdk";
         LD_LIBRARY_PATH = "${pkgs.addDriverRunpath.driverLink}/lib:${pkgs.lib.makeLibraryPath minecraftRuntimeLibs}";
+      };
+
+      devShells.${system}.rocm = pkgs.mkShell {
+        packages = with pkgs; [
+          python312
+          uv
+          rocmPackages.rocminfo
+          rocmPackages.rocm-smi
+        ];
+
+        # This convenience default affects `uv pip`. Project-level source pins
+        # in pyproject.toml remain authoritative for uv lock/sync/run.
+        UV_TORCH_BACKEND = "rocm7.2";
+        LD_LIBRARY_PATH = "/run/opengl-driver/lib:${pkgs.lib.makeLibraryPath rocmRuntimeLibs}";
       };
 
       nixosConfigurations.installer = nixpkgs.lib.nixosSystem {
