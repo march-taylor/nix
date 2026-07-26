@@ -61,6 +61,30 @@
     let
       settings = import ./settings.nix;
       inherit (settings) system username;
+      pkgs = nixpkgs.legacyPackages.${system};
+
+      # Gradle's Minecraft runClient task launches LWJGL directly, outside the
+      # wrapper used by PrismLauncher. Supply the same graphics, input and audio
+      # libraries without setting a dangerous global LD_LIBRARY_PATH.
+      minecraftRuntimeLibs = with pkgs; [
+        (lib.getLib stdenv.cc.cc)
+        glfw3-minecraft
+        openal
+        alsa-lib
+        libjack2
+        libpulseaudio
+        pipewire
+        libGL
+        libx11
+        libxcursor
+        libxext
+        libxrandr
+        libxxf86vm
+        wayland
+        udev
+        vulkan-loader
+        libusb1
+      ];
 
       mkHost =
         hostModule:
@@ -94,6 +118,17 @@
         offline-installer-iso = self.nixosConfigurations.offline-installer.config.system.build.isoImage;
       };
 
+      devShells.${system}.minecraft = pkgs.mkShell {
+        packages = with pkgs; [
+          jdk21
+          pciutils
+          xrandr
+        ];
+
+        JAVA_HOME = "${pkgs.jdk21}/lib/openjdk";
+        LD_LIBRARY_PATH = "${pkgs.addDriverRunpath.driverLink}/lib:${pkgs.lib.makeLibraryPath minecraftRuntimeLibs}";
+      };
+
       nixosConfigurations.installer = nixpkgs.lib.nixosSystem {
         inherit system;
         specialArgs = { inherit inputs settings; };
@@ -106,7 +141,7 @@
         modules = [ ./installer/offline.nix ];
       };
 
-      formatter.${system} = nixpkgs.legacyPackages.${system}.nixfmt-rfc-style;
+      formatter.${system} = pkgs.nixfmt-rfc-style;
       checks.${system} = {
         inir = self.packages.${system}.inir;
         desktop = self.nixosConfigurations.desktop.config.system.build.toplevel;
