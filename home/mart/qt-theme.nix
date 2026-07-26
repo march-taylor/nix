@@ -27,20 +27,25 @@ in
     };
   };
 
-  # Make the Qt 6 choice explicit for applications started by Niri. The generic
-  # Home Manager qtct platform value is qt5ct for compatibility, while Dolphin,
-  # Throne and PrismLauncher in this system are Qt 6 applications.
+  # Make the Qt 6 choice explicit for applications started by Niri. Home
+  # Manager's generic qtct mapping intentionally defaults to qt5ct, so override
+  # it for this Qt 6 desktop.
   programs.niri.settings.environment = {
     QT_QPA_PLATFORMTHEME = "qt6ct";
     QT_STYLE_OVERRIDE = "Darkly";
     QT_PLUGIN_PATH = qtPluginPath;
   };
 
-  # Also expose the same values to systemd user services and terminal-launched
-  # applications. The generated qt6ct.conf remains writable and owned by iNiR.
   home.sessionVariables = {
-    QT_QPA_PLATFORMTHEME = "qt6ct";
-    QT_STYLE_OVERRIDE = "Darkly";
-    QT_PLUGIN_PATH = qtPluginPath;
+    QT_QPA_PLATFORMTHEME = lib.mkForce "qt6ct";
+    QT_STYLE_OVERRIDE = lib.mkForce "Darkly";
+  };
+
+  # Home Manager also exports Qt variables directly to the systemd user manager.
+  # Force the same Qt 6 values there so Throne and other user services do not get
+  # the generic qt5ct default.
+  systemd.user.sessionVariables = {
+    QT_QPA_PLATFORMTHEME = lib.mkForce "qt6ct";
+    QT_STYLE_OVERRIDE = lib.mkForce "Darkly";
   };
 }
