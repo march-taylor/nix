@@ -127,29 +127,33 @@
         offline-installer-iso = self.nixosConfigurations.offline-installer.config.system.build.isoImage;
       };
 
-      devShells.${system}.minecraft = pkgs.mkShell {
-        packages = with pkgs; [
-          jdk21
-          pciutils
-          xrandr
-        ];
+      # Dynamic attribute names cannot be reopened multiple times in one attrset.
+      # Keep every development shell under one devShells.${system} declaration.
+      devShells.${system} = {
+        minecraft = pkgs.mkShell {
+          packages = with pkgs; [
+            jdk21
+            pciutils
+            xrandr
+          ];
 
-        JAVA_HOME = "${pkgs.jdk21}/lib/openjdk";
-        LD_LIBRARY_PATH = "${pkgs.addDriverRunpath.driverLink}/lib:${pkgs.lib.makeLibraryPath minecraftRuntimeLibs}";
-      };
+          JAVA_HOME = "${pkgs.jdk21}/lib/openjdk";
+          LD_LIBRARY_PATH = "${pkgs.addDriverRunpath.driverLink}/lib:${pkgs.lib.makeLibraryPath minecraftRuntimeLibs}";
+        };
 
-      devShells.${system}.rocm = pkgs.mkShell {
-        packages = with pkgs; [
-          python312
-          uv
-          rocmPackages.rocminfo
-          rocmPackages.rocm-smi
-        ];
+        rocm = pkgs.mkShell {
+          packages = with pkgs; [
+            python312
+            uv
+            rocmPackages.rocminfo
+            rocmPackages.rocm-smi
+          ];
 
-        # Select the PyTorch backend explicitly per install, or pin the ROCm
-        # index in pyproject.toml. A global backend can affect unrelated packages
-        # when a mixed uv pip command resolves against the PyTorch wheel index.
-        LD_LIBRARY_PATH = "/run/opengl-driver/lib:${pkgs.lib.makeLibraryPath rocmRuntimeLibs}";
+          # Select the PyTorch backend explicitly per install, or pin the ROCm
+          # index in pyproject.toml. A global backend can affect unrelated packages
+          # when a mixed uv pip command resolves against the PyTorch wheel index.
+          LD_LIBRARY_PATH = "/run/opengl-driver/lib:${pkgs.lib.makeLibraryPath rocmRuntimeLibs}";
+        };
       };
 
       nixosConfigurations.installer = nixpkgs.lib.nixosSystem {
