@@ -9,6 +9,7 @@
     ./qt-theme.nix
     ./kitty-fixes.nix
     ./session-services.nix
+    ./app-theme-fixes.nix
     ./no-network-tray.nix
   ];
 
