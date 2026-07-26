@@ -5,9 +5,9 @@
   ...
 }:
 let
-  # Match Home Manager's Qt search path inside the user profile. Niri needs the
-  # concrete value because applications spawned by the compositor do not source
-  # interactive shell startup files.
+  # Match Home Manager's Qt search path inside the user profile. Niri and
+  # systemd user services need the concrete value because they do not source an
+  # interactive shell before launching applications.
   qtPluginPath = lib.concatStringsSep ":" (
     map (qt: "${config.home.profileDirectory}/${qt.qtbase.qtPluginPrefix}") [
       pkgs.qt5
@@ -16,20 +16,31 @@ let
   );
 in
 {
-  # Installing only QT_QPA_PLATFORMTHEME/QT_STYLE_OVERRIDE is insufficient on
-  # NixOS: Qt applications have isolated plugin paths. The Home Manager module
-  # installs both Qt 5/6 KDE integration and Breeze plugins and exposes them in
-  # the profile search path. Breeze still consumes iNiR's generated kdeglobals
-  # palette and ~/.local/share/color-schemes/Darkly.colors.
+  # iNiR writes its live palette to qt5ct/qt6ct and Darkly.colors. Using KDE +
+  # Breeze here made Qt applications ignore the files that iNiR was updating.
   qt = {
     enable = true;
-    platformTheme.name = "kde";
-    style.name = "breeze";
+    platformTheme.name = "qtct";
+    style = {
+      name = "darkly";
+      package = pkgs.darkly;
+    };
   };
 
+  # Make the Qt 6 choice explicit for applications started by Niri. The generic
+  # Home Manager qtct platform value is qt5ct for compatibility, while Dolphin,
+  # Throne and PrismLauncher in this system are Qt 6 applications.
   programs.niri.settings.environment = {
-    QT_QPA_PLATFORMTHEME = "kde";
-    QT_STYLE_OVERRIDE = "Breeze";
+    QT_QPA_PLATFORMTHEME = "qt6ct";
+    QT_STYLE_OVERRIDE = "Darkly";
+    QT_PLUGIN_PATH = qtPluginPath;
+  };
+
+  # Also expose the same values to systemd user services and terminal-launched
+  # applications. The generated qt6ct.conf remains writable and owned by iNiR.
+  home.sessionVariables = {
+    QT_QPA_PLATFORMTHEME = "qt6ct";
+    QT_STYLE_OVERRIDE = "Darkly";
     QT_PLUGIN_PATH = qtPluginPath;
   };
 }
