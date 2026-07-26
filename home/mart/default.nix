@@ -7,6 +7,7 @@
     ./niri-fixes.nix
     ./inir.nix
     ./qt-theme.nix
+    ./kitty-fixes.nix
     ./session-services.nix
     ./no-network-tray.nix
   ];
