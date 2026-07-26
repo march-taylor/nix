@@ -146,9 +146,9 @@
           rocmPackages.rocm-smi
         ];
 
-        # This convenience default affects `uv pip`. Project-level source pins
-        # in pyproject.toml remain authoritative for uv lock/sync/run.
-        UV_TORCH_BACKEND = "rocm7.2";
+        # Select the PyTorch backend explicitly per install, or pin the ROCm
+        # index in pyproject.toml. A global backend can affect unrelated packages
+        # when a mixed uv pip command resolves against the PyTorch wheel index.
         LD_LIBRARY_PATH = "/run/opengl-driver/lib:${pkgs.lib.makeLibraryPath rocmRuntimeLibs}";
       };
 
