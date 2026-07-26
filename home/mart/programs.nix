@@ -54,6 +54,7 @@ in
     element-desktop
     reaper
     codex
+    uv
 
     kdePackages.dolphin
     kdePackages.ark
