@@ -17,7 +17,8 @@ let
     do
       if [ -f "$db" ]; then
         ${pkgs.sqlite}/bin/sqlite3 "$db" \
-          "INSERT INTO settings(key, value) VALUES('theme', 'System') ON CONFLICT(key) DO UPDATE SET value='System';"
+          "INSERT INTO settings(key, value) VALUES('theme', 'System') ON CONFLICT(key) DO UPDATE SET value='System';" \
+          >/dev/null 2>&1 || true
       fi
     done
 
