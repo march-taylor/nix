@@ -122,6 +122,7 @@
       "wheel"
       "networkmanager"
       "video"
+      "render"
       "audio"
       "input"
       "dialout"
