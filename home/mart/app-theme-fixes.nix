@@ -31,15 +31,23 @@ in
 {
   # PrismLauncher has its own application-theme selector. "system" preserves
   # its data and accounts while making it use the Qt palette captured at start.
-  home.activation.configurePrismLauncherSystemTheme =
+  home.activation.configureSharedQtApplicationThemes =
     lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      cfg="${config.home.homeDirectory}/.local/share/PrismLauncher/prismlauncher.cfg"
-      ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname "$cfg")"
+      prism_cfg="${config.home.homeDirectory}/.local/share/PrismLauncher/prismlauncher.cfg"
+      ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname "$prism_cfg")"
       ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 \
-        --file "$cfg" \
+        --file "$prism_cfg" \
         --group General \
         --key ApplicationTheme \
         system
+
+      # Remove a Dolphin-only color scheme so the global iNiR qt6ct/Darkly
+      # palette is authoritative. No other Dolphin preference is changed.
+      ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 \
+        --file dolphinrc \
+        --group General \
+        --key ColorScheme \
+        --delete
     '';
 
   # Override the existing autostart command so the database theme is corrected
