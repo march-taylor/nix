@@ -4,7 +4,10 @@
   ...
 }:
 {
-  imports = [ ./throne-compat.nix ];
+  imports = [
+    ./throne-compat.nix
+    ./kokoro.nix
+  ];
 
   networking.hostName = settings.hostname;
   networking.networkmanager.enable = true;
