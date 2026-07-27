@@ -63,6 +63,9 @@ in
     anki-bin
 
     kdePackages.dolphin
+    # Supplies kbuildsycoca6, which indexes desktop files and MIME handlers
+    # for Dolphin's "Open With" menu and terminal integration.
+    kdePackages.kservice
     kdePackages.ark
     kdePackages.kio-admin
     kdePackages.kio-extras
@@ -222,9 +225,13 @@ in
   };
 
   home.pointerCursor = {
-    name = "capitaine-cursors-light";
+    # `capitaine-cursors-light` is not a theme directory in this package.
+    # Refer to the actual theme so Niri gets all pointer, move and resize
+    # cursor glyphs instead of falling back to an incomplete default cursor.
+    enable = true;
+    name = "capitaine-cursors";
     package = pkgs.capitaine-cursors;
-    size = 24;
+    size = 20;
     gtk.enable = true;
     x11.enable = true;
   };

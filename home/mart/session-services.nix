@@ -56,7 +56,7 @@ in
   # has been applied. Starting them directly in Niri races the theme generator
   # on every login and leaves long-running applications with the default theme.
   programs.niri.settings.spawn-at-startup = lib.mkForce [
-    { sh = "systemctl --user import-environment XDG_MENU_PREFIX && kbuildsycoca6"; }
+    { sh = "systemctl --user import-environment XDG_MENU_PREFIX && kbuildsycoca6 --noincremental"; }
     { argv = [ "wl-paste" "--type" "text" "--watch" "cliphist" "store" ]; }
     { argv = [ "wl-paste" "--type" "image" "--watch" "cliphist" "store" ]; }
     { argv = [ "steam" ]; }

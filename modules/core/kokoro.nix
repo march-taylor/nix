@@ -1,4 +1,10 @@
-{ pkgs, settings, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  settings,
+  ...
+}:
 let
   langCodes = {
     en = "a";
@@ -177,22 +183,29 @@ let
   };
 in
 {
-  environment.systemPackages = [ kokoroTts ];
+  options.services.kokoro-tts.enable = lib.mkEnableOption "the local Kokoro text-to-speech service";
 
-  systemd.services.kokoro-tts = {
-    description = "Kokoro local TTS API";
-    after = [ "network-online.target" ];
-    wants = [ "network-online.target" ];
-    wantedBy = [ "multi-user.target" ];
-    serviceConfig = {
-      Type = "simple";
-      User = settings.username;
-      Group = "users";
-      WorkingDirectory = "/home/${settings.username}";
-      ExecStart = "${kokoroTts}/bin/kokoro-tts --serve --host 127.0.0.1 --port 8388";
-      Restart = "on-failure";
-      RestartSec = 5;
-      NoNewPrivileges = true;
+  # Kokoro brings PyTorch, SciPy and a large Python/ML closure. It is unrelated
+  # to the desktop and should not make a cursor or portal update compile those
+  # packages locally. Enable it explicitly when the local TTS API is needed.
+  config = lib.mkIf config.services.kokoro-tts.enable {
+    environment.systemPackages = [ kokoroTts ];
+
+    systemd.services.kokoro-tts = {
+      description = "Kokoro local TTS API";
+      after = [ "network-online.target" ];
+      wants = [ "network-online.target" ];
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        Type = "simple";
+        User = settings.username;
+        Group = "users";
+        WorkingDirectory = "/home/${settings.username}";
+        ExecStart = "${kokoroTts}/bin/kokoro-tts --serve --host 127.0.0.1 --port 8388";
+        Restart = "on-failure";
+        RestartSec = 5;
+        NoNewPrivileges = true;
+      };
     };
   };
 }

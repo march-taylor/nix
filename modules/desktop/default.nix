@@ -58,6 +58,27 @@ in
   services.dbus.enable = true;
   security.polkit.enable = true;
 
+  # Niri's default portal stack provides the compositor-specific services but
+  # otherwise falls back to a GTK file chooser.  Route FileChooser explicitly
+  # through the KDE backend so Electron/GTK/Flatpak applications get the
+  # KIO-based file dialog used by Dolphin.  Keep GNOME for Niri-specific
+  # interfaces such as screencasting, with GTK as a general fallback.
+  xdg.portal = {
+    enable = true;
+    xdgOpenUsePortal = true;
+    extraPortals = [
+      pkgs.kdePackages.xdg-desktop-portal-kde
+      pkgs.xdg-desktop-portal-gtk
+    ];
+    config.niri = {
+      default = [
+        "gnome"
+        "gtk"
+      ];
+      "org.freedesktop.impl.portal.FileChooser" = "kde";
+    };
+  };
+
   # Removable media and desktop file access.
   services.gvfs.enable = true;
   services.udisks2.enable = true;
@@ -108,6 +129,9 @@ in
   environment.sessionVariables = {
     NIXOS_OZONE_WL = "1";
     MOZ_ENABLE_WAYLAND = "1";
+    # Make GTK-based pickers (including Electron applications using GTK) use
+    # the portal above instead of opening a separate, non-native dialog.
+    GTK_USE_PORTAL = "1";
     QT_QPA_PLATFORM = "wayland;xcb";
   };
 }

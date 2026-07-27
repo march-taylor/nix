@@ -51,8 +51,8 @@ in
     };
 
     cursor = {
-      theme = "capitaine-cursors-light";
-      size = 24;
+      theme = "capitaine-cursors";
+      size = 20;
       hide-when-typing = true;
     };
 
@@ -113,7 +113,7 @@ in
     };
 
     spawn-at-startup = [
-      { sh = "systemctl --user import-environment XDG_MENU_PREFIX && kbuildsycoca6"; }
+      { sh = "systemctl --user import-environment XDG_MENU_PREFIX && kbuildsycoca6 --noincremental"; }
       { argv = [ "wl-paste" "--type" "text" "--watch" "cliphist" "store" ]; }
       { argv = [ "wl-paste" "--type" "image" "--watch" "cliphist" "store" ]; }
       { argv = [ "zen-browser" ]; }

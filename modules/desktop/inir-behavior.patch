@@ -42,7 +42,7 @@
          ]
 --- a/modules/sidebarLeft/widgets/GlanceHeader.qml
 +++ b/modules/sidebarLeft/widgets/GlanceHeader.qml
-@@ -192,12 +192,15 @@
+@@ -192,10 +192,14 @@
                      onClicked: {
                          const isWaffle = (Config.options?.panelFamily === "waffle" && Config.options?.waffles?.settings?.useMaterialStyle !== true);
 -                        const settingsPath = isWaffle ? Quickshell.shellPath("waffleSettings.qml") : Quickshell.shellPath("settings.qml");
@@ -78,15 +78,15 @@
              exec "$@"
 --- a/modules/common/Config.qml
 +++ b/modules/common/Config.qml
-@@ -1,4 +1,5 @@
+@@ -667,4 +667,5 @@
                  property JsonObject palette: JsonObject {
                      property string type: "auto" // Allowed: auto, scheme-content, scheme-expressive, scheme-fidelity, scheme-fruit-salad, scheme-monochrome, scheme-neutral, scheme-rainbow, scheme-tonal-spot
                      property string accentColor: "" // Seed color hex for scheme variant (e.g. "#ab1234"), empty = use theme primary
-+                    property string mode: "dark" // auto | dark | light; persists the dark/light toggle across shell restarts
++                    property string mode: "dark" // User-selected shell mode; never infer it from wallpaper brightness.
                  }
 --- a/defaults/config.json
 +++ b/defaults/config.json
-@@ -1,4 +1,5 @@
+@@ -109,4 +109,5 @@
          "palette": {
              "type": "auto",
 -            "accentColor": ""
@@ -95,90 +95,47 @@
          },
 --- a/services/MaterialThemeLoader.qml
 +++ b/services/MaterialThemeLoader.qml
-@@ -51,6 +51,7 @@
-     // Toggle dark/light mode by running switchwall.sh with --mode and scheduling a reload.
+@@ -50,3 +50,4 @@
      function setDarkMode(dark: bool): void {
 +        Config.setNestedValue("appearance.palette.mode", dark ? "dark" : "light")
          darkModeProc.command = [
              "/usr/bin/bash",
-             Directories.wallpaperSwitchScriptPath,
-@@ -141,6 +142,30 @@
-             return
-         }
- 
-+        // Do not let a stale palette from the opposite color mode repaint the
-+        // live shell while Settings is being lazily constructed. The requested
-+        // mode is persisted in config; ThemeService regenerates a matching file.
-+        const configuredMode = Config.options?.appearance?.palette?.mode ?? "dark"
-+        if (configuredMode === "dark" || configuredMode === "light") {
-+            let generatedDark = null
-+            if (typeof json.darkmode === "boolean") {
-+                generatedDark = json.darkmode
-+            } else {
-+                const match = /^#?([0-9a-fA-F]{6})$/.exec(String(json.background ?? ""))
-+                if (match) {
-+                    const hex = match[1]
-+                    const r = parseInt(hex.slice(0, 2), 16)
-+                    const g = parseInt(hex.slice(2, 4), 16)
-+                    const b = parseInt(hex.slice(4, 6), 16)
-+                    generatedDark = (0.299 * r + 0.587 * g + 0.114 * b) < 128
-+                }
-+            }
-+            if (generatedDark !== null && generatedDark !== (configuredMode === "dark")) {
-+                _log("[MaterialThemeLoader] BLOCKED — generated palette mode conflicts with configured mode:", configuredMode)
-+                return
-+            }
-+        }
-+
-         // Consume _forceApply only after successful validation — failed reads
-         // must keep the flag so the poll timer can retry.
-         root._forceApply = false
 --- a/services/ThemeService.qml
 +++ b/services/ThemeService.qml
-@@ -30,6 +30,7 @@
-         panelFamily: root.panelFamily,
-         waffleUsesMainWallpaper: root.waffleUsesMainWallpaper,
-         paletteType: Config.options?.appearance?.palette?.type ?? "auto",
-+        paletteMode: Config.options?.appearance?.palette?.mode ?? "dark",
-         themingWallpaperPath: Wallpapers.effectiveWallpaperPath ?? "",
-         enableAppsAndShell: wallpaperThemingCfg?.enableAppsAndShell ?? true,
-         enableTerminal: wallpaperThemingCfg?.enableTerminal ?? true,
-@@ -110,6 +111,15 @@
- 
-     function applyCurrentTheme(applyExternal = defaultApplyExternal): void {
-         root._log("[ThemeService] applyCurrentTheme called, currentTheme:", currentTheme, "isAutoTheme:", isAutoTheme);
-+        const configuredMode = Config.options?.appearance?.palette?.mode ?? "dark"
-+        if (isAutoTheme && (configuredMode === "dark" || configuredMode === "light")) {
-+            // A persisted explicit mode is authoritative. Regenerate instead of
-+            // briefly applying an old colors.json produced in the opposite mode.
-+            root._log("[ThemeService] Regenerating auto palette for persisted mode:", configuredMode)
-+            root.regenerateAutoTheme()
-+            root.ready = true
-+            return
-+        }
-         if (isAutoTheme) {
-             root._log("[ThemeService] Delegating to MaterialThemeLoader");
-             MaterialThemeLoader.reapplyTheme();
-@@ -178,10 +188,13 @@
-             // Force full regeneration from wallpaper (includes terminals, GTK, etc)
+@@ -178,5 +178,8 @@
              const themingPath = Wallpapers.currentThemingWallpaperPath()
              const paletteType = Config.options?.appearance?.palette?.type ?? "auto"
-+            const colorMode = Config.options?.appearance?.palette?.mode ?? "dark"
++            const paletteMode = Config.options?.appearance?.palette?.mode ?? "dark"
              const command = [Directories.wallpaperSwitchScriptPath, "--noswitch"]
              if (paletteType !== "auto")
                  command.push("--type", paletteType)
-+            if (colorMode === "dark" || colorMode === "light")
-+                command.push("--mode", colorMode)
-             if (themingPath && themingPath.length > 0)
-                 command.push("--image", themingPath)
-             Quickshell.execDetached(command);
++            if (paletteMode === "dark" || paletteMode === "light")
++                command.push("--mode", paletteMode)
 --- a/scripts/colors/apply-gtk-theme.sh
 +++ b/scripts/colors/apply-gtk-theme.sh
-@@ -576,6 +576,7 @@
+@@ -197,3 +197,3 @@
+ generate_kdeglobals() {
+     local icon_theme font_raw mono_raw font_name font_size mono_name mono_size
+-    icon_theme=$(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null | tr -d "'")
++    icon_theme=$(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null | tr -d "'" || true)
+@@ -201,4 +201,4 @@
+     # Read current GTK fonts so wallpaper theme changes don't reset user fonts
+-    font_raw=$(gsettings get org.gnome.desktop.interface font-name 2>/dev/null | tr -d "'")
+-    mono_raw=$(gsettings get org.gnome.desktop.interface monospace-font-name 2>/dev/null | tr -d "'")
++    font_raw=$(gsettings get org.gnome.desktop.interface font-name 2>/dev/null | tr -d "'" || true)
++    mono_raw=$(gsettings get org.gnome.desktop.interface monospace-font-name 2>/dev/null | tr -d "'" || true)
+     if [[ -n "$font_raw" ]]; then
+@@ -576,4 +576,5 @@
  [General]
  ColorScheme=Darkly
  Name=Darkly
 +TerminalApplication=kitty
  shadeSortColumn=true
- 
- [KDE]
+@@ -868,2 +869,2 @@
+     local current_icon
+-    current_icon=$(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null | tr -d "'")
++    current_icon=$(gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null | tr -d "'" || true)
+@@ -872,2 +873,2 @@
+     local current_cursor
+-    current_cursor=$(gsettings get org.gnome.desktop.interface cursor-theme 2>/dev/null | tr -d "'")
++    current_cursor=$(gsettings get org.gnome.desktop.interface cursor-theme 2>/dev/null | tr -d "'" || true)
