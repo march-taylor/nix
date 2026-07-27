@@ -23,11 +23,14 @@ let
 
   python = pkgs.python312.withPackages (ps: [
     ps.fastapi
+    ps.fugashi
+    ps.jaconv
     ps.kokoro
     ps.numpy
     ps.soundfile
+    ps.unidic
     ps.uvicorn
-  ] ++ ps.misaki."optional-dependencies".ja);
+  ]);
 
   kokoroTts = pkgs.writeShellApplication {
     name = "kokoro-tts";
