@@ -10,6 +10,7 @@ let
   # These are defaults only. The activation merge uses the existing user JSON
   # as the right-hand side, so every explicit user value wins.
   inirThemeIntegrationDefaults = pkgs.writeText "inir-theme-integration-defaults.json" (builtins.toJSON {
+    appearance.palette.mode = "dark";
     appearance.wallpaperTheming = {
       enableAppsAndShell = true;
       enableQtApps = true;
