@@ -5,7 +5,18 @@ let
     ja = "j";
   };
 
-  defaultVoices = {
+  presetVoices = {
+    en = [
+      "af_bella"
+      "af_sarah"
+    ];
+    ja = [
+      "jf_alpha"
+      "jf_tebukuro"
+    ];
+  };
+
+  defaultVoice = {
     en = "af_bella";
     ja = "jf_alpha";
   };
@@ -16,7 +27,7 @@ let
     ps.numpy
     ps.soundfile
     ps.uvicorn
-  ] ++ ps.misaki.optional-dependencies.ja);
+  ] ++ ps.misaki."optional-dependencies".ja);
 
   kokoroTts = pkgs.writeShellApplication {
     name = "kokoro-tts";
@@ -49,9 +60,14 @@ let
           "ja": "j",
       }
 
-      DEFAULT_VOICES = {
+      PRESET_VOICES = {
           "en": ["af_bella", "af_sarah"],
           "ja": ["jf_alpha", "jf_tebukuro"],
+      }
+
+      DEFAULT_VOICE = {
+          "en": "af_bella",
+          "ja": "jf_alpha",
       }
 
       SAMPLE_RATE = 24000
@@ -92,7 +108,8 @@ let
           return {
               "sample_rate": SAMPLE_RATE,
               "supported_languages": list(LANG_CODES.keys()),
-              "default_voices": DEFAULT_VOICES,
+              "preset_voices": PRESET_VOICES,
+              "default_voice": DEFAULT_VOICE,
           }
 
       @app.post("/tts")
@@ -105,9 +122,9 @@ let
           if lang not in LANG_CODES:
               raise HTTPException(status_code=400, detail=f"unsupported language: {lang}")
 
-          voice = str(payload.get("voice", DEFAULT_VOICES[lang]))
+          voice = str(payload.get("voice", DEFAULT_VOICE[lang]))
           speed = float(payload.get("speed", 1.0))
-          split_pattern = str(payload.get("split_pattern", r"\\n+"))
+          split_pattern = str(payload.get("split_pattern", r"\n+"))
 
           audio = synthesize(text, lang, voice, speed, split_pattern)
           return Response(content=wav_bytes(audio), media_type="audio/wav")
@@ -119,7 +136,7 @@ let
           parser.add_argument("--lang", choices=sorted(LANG_CODES), default="en", help="Language code")
           parser.add_argument("--voice", help="Kokoro voice name")
           parser.add_argument("--speed", type=float, default=1.0, help="Playback speed")
-          parser.add_argument("--split-pattern", default=r"\\n+", help="Regex used to split text")
+          parser.add_argument("--split-pattern", default=r"\n+", help="Regex used to split text")
           parser.add_argument("--list-voices", action="store_true", help="Print the recommended voice presets")
           parser.add_argument("--serve", action="store_true", help="Run the local HTTP API")
           parser.add_argument("--host", default="127.0.0.1", help="Bind host for --serve")
@@ -130,7 +147,7 @@ let
           args = parse_args()
 
           if args.list_voices:
-              print(json.dumps({"default_voices": DEFAULT_VOICES}, indent=2, ensure_ascii=False))
+              print(json.dumps({"preset_voices": PRESET_VOICES, "default_voice": DEFAULT_VOICE}, indent=2, ensure_ascii=False))
               return
 
           if args.serve:
@@ -142,7 +159,7 @@ let
           if not text:
               raise SystemExit("No text provided")
 
-          voice = args.voice or DEFAULT_VOICES[args.lang]
+          voice = args.voice or DEFAULT_VOICE[args.lang]
           audio = synthesize(text, args.lang, voice, args.speed, args.split_pattern)
 
           if args.output == "-":
