@@ -63,6 +63,7 @@ EOF
     findutils
     gawk
     git
+    glib
     gnugrep
     gnused
     jq
@@ -134,11 +135,6 @@ EOF
   # bundled Quickshell. QML plugins are ABI-sensitive, so Kirigami and Qt must
   # come from this package set rather than from the host system's nixpkgs.
   upstreamInirRuntimePackages = upstreamInirPackage.passthru.runtimeDependencies or [ ];
-  inirQuickshell = lib.findFirst
-    (package: (package.pname or "") == "quickshell")
-    pkgs.quickshell
-    upstreamInirRuntimePackages;
-
   # Current nixpkgs exposes Kirigami as an empty wrapper derivation whose actual
   # QML payload lives in passthru.unwrapped. Include that payload and propagated
   # dependencies such as qqc2-desktop-style when constructing the QML runtime.
@@ -147,27 +143,43 @@ EOF
     ++ lib.optional (package ? unwrapped) package.unwrapped
     ++ (package.propagatedBuildInputs or [ ]);
   upstreamInirQmlPackages = lib.concatMap expandQmlPackage upstreamInirRuntimePackages;
+  hasQtPath = path: package: builtins.pathExists "${package}/${path}";
+  inirQmlPackages = lib.filter (package:
+    hasQtPath "lib/qt-6/qml" package || hasQtPath "lib/qt6/qml" package
+  ) upstreamInirQmlPackages;
+  inirQtPluginPackages = lib.filter (package:
+    hasQtPath "lib/qt-6/plugins" package || hasQtPath "lib/qt6/plugins" package
+  ) upstreamInirQmlPackages;
 
-  # Qt packages have used both qt-6 and qt6 directory layouts. Keep both in the
-  # runtime search path; empty/nonexistent entries are harmless.
   inirQmlPath = lib.concatStringsSep ":" [
-    (lib.makeSearchPath "lib/qt-6/qml" upstreamInirQmlPackages)
-    (lib.makeSearchPath "lib/qt6/qml" upstreamInirQmlPackages)
+    (lib.makeSearchPath "lib/qt-6/qml" inirQmlPackages)
+    (lib.makeSearchPath "lib/qt6/qml" inirQmlPackages)
   ];
   inirQtPluginPath = lib.concatStringsSep ":" [
-    (lib.makeSearchPath "lib/qt-6/plugins" upstreamInirQmlPackages)
-    (lib.makeSearchPath "lib/qt6/plugins" upstreamInirQmlPackages)
+    (lib.makeSearchPath "lib/qt-6/plugins" inirQtPluginPackages)
+    (lib.makeSearchPath "lib/qt6/plugins" inirQtPluginPackages)
   ];
 
-  # Keep upstream's package, launcher and module behavior. Patch only current
-  # packaging defects in the flake output.
   inirPackage = upstreamInirPackage.overrideAttrs (oldAttrs: {
-    patches = (oldAttrs.patches or [ ]) ++ [ ./inir-behavior.patch ];
-
     postPatch = (oldAttrs.postPatch or "") + ''
       sed -i '1c\#!${pkgs.python3}/bin/python3' \
         scripts/hyprland/get_keybinds.py \
         scripts/colors/generate_colors_material.py
+
+      sed -i '/property string accentColor: ""/a\                    property string mode: "dark" // Shell color mode' \
+        modules/common/Config.qml
+      sed -i 's/"accentColor": ""/"accentColor": "",\n            "mode": "dark"/' \
+        defaults/config.json
+      sed -i '/function setDarkMode(dark: bool): void {/a\        Config.setNestedValue("appearance.palette.mode", dark ? "dark" : "light")' \
+        services/MaterialThemeLoader.qml
+      sed -i '/const paletteType = Config.options?.appearance?.palette?.type ?? "auto"/a\            const paletteMode = Config.options?.appearance?.palette?.mode ?? "dark"' \
+        services/ThemeService.qml
+      sed -i '/command.push("--type", paletteType)/a\            if (paletteMode === "dark" || paletteMode === "light")\n                command.push("--mode", paletteMode)' \
+        services/ThemeService.qml
+      sed -i 's#"/usr/bin/gsettings"#"gsettings"#g' \
+        services/IconThemeService.qml
+      sed -i '/''${font_name:+fixed=/iTerminalApplication=kitty -1' \
+        scripts/colors/apply-gtk-theme.sh
     '';
 
     postInstall = (oldAttrs.postInstall or "") + ''
@@ -185,22 +197,6 @@ EOF
       find "$runtime" -maxdepth 1 -type f \
         \( -name '*.qml' -o -name '*.js' \) \
         -exec sed -i 's#/usr/bin/##g' {} +
-
-      # Every settings entry point must target the already-running shell. The
-      # upstream launcher still honors settingsUi.overlayMode=false and then
-      # starts a second settings.qml process. On NixOS that bypasses our inline
-      # overlay patch and can also use a stale runtime after a generation switch.
-      # Intercept settings/open in the runtime script itself so Niri keybinds,
-      # QML buttons and both profile launchers all use the same live IPC target.
-      mv "$runtime/scripts/inir" "$runtime/scripts/.inir-launcher"
-      cat > "$runtime/scripts/inir" <<EOF
-#!${pkgs.bash}/bin/bash
-if [ "\''${1:-}" = "settings" ] || [ "\''${1:-}" = "open" ]; then
-  exec ${inirQuickshell}/bin/qs -p "$runtime" ipc call settings open
-fi
-exec "$runtime/scripts/.inir-launcher" "\$@"
-EOF
-      chmod +x "$runtime/scripts/inir" "$runtime/scripts/.inir-launcher"
 
       # Link each top-level org.kde module as a complete tree. Linking nested
       # qmldir directories first creates real parent directories and prevents

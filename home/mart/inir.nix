@@ -27,15 +27,6 @@ let
 
   inirPackage = osConfig.programs.inir.package;
   inirRuntime = "${inirPackage}/share/quickshell/inir";
-  inirRuntimeDependencies = inirPackage.passthru.runtimeDependencies or [ ];
-  inirQuickshell = lib.findFirst
-    (package: (package.pname or "") == "quickshell")
-    pkgs.quickshell
-    inirRuntimeDependencies;
-
-  # Quickshell identifies an IPC instance by its shell path. Always use the
-  # exact Nix-store runtime used by inir.service rather than a Home Manager
-  # symlink that may resolve to a different generation after login or rebuild.
   inirCli = pkgs.writeShellApplication {
     name = "inir";
     runtimeInputs = [ pkgs.systemd ];
@@ -44,10 +35,6 @@ let
       export INIR_RUNTIME_DIR="$runtime"
       export INIR_SYSTEM_RUNTIME_DIR="$runtime"
       export INIR_FALLBACK_SYSTEM_RUNTIME_DIR="$runtime"
-
-      if [ "''${1:-}" = "settings" ]; then
-        exec ${inirQuickshell}/bin/qs -p "$runtime" ipc call settings open
-      fi
 
       exec ${inirPackage}/bin/inir "$@"
     '';
@@ -58,8 +45,8 @@ in
 
   # The NixOS module is the sole owner of the package and inir.service. Home
   # Manager only supplies a deterministic CLI wrapper and mutable user config.
-  # In particular, do not recreate ~/.config/quickshell/inir: using that symlink
-  # for IPC while the service uses the store path creates a second shell ID.
+  # In particular, do not recreate ~/.config/quickshell/inir: the service uses
+  # the store path as its runtime root.
   programs.inir.enable = false;
   home.packages = [ inirCli ];
 
@@ -112,9 +99,9 @@ in
     fi
   '';
 
-  # `inir doctor` targets the mutable repo installer. On NixOS its auto-fixes
-  # can shadow the wrapped launcher and point shells at a nonexistent mutable
-  # venv. Remove only files/blocks carrying doctor's own identifying markers.
+  # `inir doctor` targets the mutable repository installer. On NixOS its
+  # generated files can shadow the wrapped launcher and point shells at a
+  # nonexistent mutable virtual environment. Remove only its own files/blocks.
   home.activation.removeDoctorInirFiles = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     launcher="${config.home.homeDirectory}/.local/bin/inir"
     if [ -f "$launcher" ] && [ ! -L "$launcher" ] \

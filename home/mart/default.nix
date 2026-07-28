@@ -4,12 +4,12 @@
     ./programs.nix
     ./discord.nix
     ./niri.nix
-    ./niri-fixes.nix
+    ./niri-rules.nix
     ./inir.nix
     ./qt-theme.nix
-    ./kitty-fixes.nix
+    ./kitty.nix
     ./session-services.nix
-    ./app-theme-fixes.nix
+    ./application-themes.nix
     ./no-network-tray.nix
   ];
 

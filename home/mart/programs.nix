@@ -61,8 +61,10 @@ in
     osu-lazer-bin
     obsidian
     anki-bin
+    blockbench
 
     kdePackages.dolphin
+    kdePackages.kde-cli-tools
     # Supplies kbuildsycoca6, which indexes desktop files and MIME handlers
     # for Dolphin's "Open With" menu and terminal integration.
     kdePackages.kservice
@@ -106,6 +108,10 @@ in
   programs.git = {
     enable = true;
     settings = {
+      user = {
+        name = "march-taylor";
+        email = "mart.buffer.v3@gmail.com";
+      };
       init.defaultBranch = "main";
       pull.rebase = false;
       fetch.prune = true;
@@ -163,10 +169,43 @@ in
     Exec=${pkgs.keepassxc}/bin/keepassxc
   '';
 
-  xdg.mimeApps = {
-    enable = true;
-    defaultApplications."inode/directory" = [ "org.kde.dolphin.desktop" ];
+  # Dolphin writes a selected "Open With" application to mimeapps.list.
+  # Keep that file mutable; Home Manager's generated symlink rejects writes.
+  xdg.mimeApps.enable = false;
+
+  xdg.desktopEntries.imv-dir = {
+    name = "imv-dir";
+    exec = "imv-dir %F";
+    mimeType = [ "image/png" ];
+    noDisplay = false;
   };
+
+  home.activation.prepareMutableMimeApps = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    for mime_file in \
+      "${config.xdg.configHome}/mimeapps.list" \
+      "${config.xdg.dataHome}/applications/mimeapps.list"
+    do
+      ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname "$mime_file")"
+
+      if [ -L "$mime_file" ]; then
+        tmp="$(${pkgs.coreutils}/bin/mktemp)"
+        ${pkgs.coreutils}/bin/cp --dereference "$mime_file" "$tmp"
+        ${pkgs.coreutils}/bin/rm -f "$mime_file"
+        ${pkgs.coreutils}/bin/mv "$tmp" "$mime_file"
+      elif [ ! -e "$mime_file" ] && [ "$mime_file" = "${config.xdg.configHome}/mimeapps.list" ]; then
+        ${pkgs.coreutils}/bin/printf '%s\n' \
+          '[Default Applications]' \
+          'inode/directory=org.kde.dolphin.desktop' \
+          > "$mime_file"
+      fi
+
+      if [ -f "$mime_file" ]; then
+        ${pkgs.gnused}/bin/sed -i \
+          's/^image\/png=imv-dir-2\.desktop;$/image\/png=imv-dir.desktop;/' \
+          "$mime_file"
+      fi
+    done
+  '';
 
   programs.kitty = {
     enable = true;
@@ -195,14 +234,13 @@ in
     fi
   '';
 
-  # KIO/Dolphin reads these keys from kdeglobals. The iNiR KDE theme generator
-  # also preserves TerminalApplication=kitty, so changing colors cannot restore
-  # the xterm fallback.
   home.activation.configureDolphinTerminal = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 \
-      --file kdeglobals --group General --key TerminalApplication kitty
+      --file kdeglobals --group General --key TerminalApplication 'kitty -1'
     ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 \
       --file kdeglobals --group General --key TerminalService --delete
+    ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 \
+      --file kservicemenurc --group Show --key runInKonsole true
   '';
 
   programs.bash.enable = true;

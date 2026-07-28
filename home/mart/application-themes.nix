@@ -29,8 +29,6 @@ let
   '';
 in
 {
-  # PrismLauncher has its own application-theme selector. "system" preserves
-  # its data and accounts while making it use the Qt palette captured at start.
   home.activation.configureSharedQtApplicationThemes =
     lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       prism_cfg="${config.home.homeDirectory}/.local/share/PrismLauncher/prismlauncher.cfg"
@@ -41,8 +39,6 @@ in
         --key ApplicationTheme \
         system
 
-      # Remove a Dolphin-only color scheme so the global iNiR KDE/Darkly
-      # palette is authoritative. No other Dolphin preference is changed.
       ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 \
         --file dolphinrc \
         --group General \
@@ -50,8 +46,6 @@ in
         --delete
     '';
 
-  # Override the existing autostart command so the database theme is corrected
-  # before every Throne launch, including after Throne rewrites its settings.
   systemd.user.services.throne-autostart.Service = {
     ExecStart = lib.mkForce throneSystemTheme;
     Environment = [

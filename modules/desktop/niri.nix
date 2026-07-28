@@ -63,6 +63,7 @@ EOF
     findutils
     gawk
     git
+    glib
     gnugrep
     gnused
     jq
@@ -143,27 +144,43 @@ EOF
     ++ lib.optional (package ? unwrapped) package.unwrapped
     ++ (package.propagatedBuildInputs or [ ]);
   upstreamInirQmlPackages = lib.concatMap expandQmlPackage upstreamInirRuntimePackages;
+  hasQtPath = path: package: builtins.pathExists "${package}/${path}";
+  inirQmlPackages = lib.filter (package:
+    hasQtPath "lib/qt-6/qml" package || hasQtPath "lib/qt6/qml" package
+  ) upstreamInirQmlPackages;
+  inirQtPluginPackages = lib.filter (package:
+    hasQtPath "lib/qt-6/plugins" package || hasQtPath "lib/qt6/plugins" package
+  ) upstreamInirQmlPackages;
 
-  # Qt packages have used both qt-6 and qt6 directory layouts. Keep both in the
-  # runtime search path; empty/nonexistent entries are harmless.
   inirQmlPath = lib.concatStringsSep ":" [
-    (lib.makeSearchPath "lib/qt-6/qml" upstreamInirQmlPackages)
-    (lib.makeSearchPath "lib/qt6/qml" upstreamInirQmlPackages)
+    (lib.makeSearchPath "lib/qt-6/qml" inirQmlPackages)
+    (lib.makeSearchPath "lib/qt6/qml" inirQmlPackages)
   ];
   inirQtPluginPath = lib.concatStringsSep ":" [
-    (lib.makeSearchPath "lib/qt-6/plugins" upstreamInirQmlPackages)
-    (lib.makeSearchPath "lib/qt6/plugins" upstreamInirQmlPackages)
+    (lib.makeSearchPath "lib/qt-6/plugins" inirQtPluginPackages)
+    (lib.makeSearchPath "lib/qt6/plugins" inirQtPluginPackages)
   ];
 
-  # Keep upstream's package, launcher and module behavior. Patch only current
-  # packaging defects in the flake output.
   inirPackage = upstreamInirPackage.overrideAttrs (oldAttrs: {
-    patches = (oldAttrs.patches or [ ]) ++ [ ./inir-behavior.patch ];
-
     postPatch = (oldAttrs.postPatch or "") + ''
       sed -i '1c\#!${pkgs.python3}/bin/python3' \
         scripts/hyprland/get_keybinds.py \
         scripts/colors/generate_colors_material.py
+
+      sed -i '/property string accentColor: ""/a\                    property string mode: "dark" // Shell color mode' \
+        modules/common/Config.qml
+      sed -i 's/"accentColor": ""/"accentColor": "",\n            "mode": "dark"/' \
+        defaults/config.json
+      sed -i '/function setDarkMode(dark: bool): void {/a\        Config.setNestedValue("appearance.palette.mode", dark ? "dark" : "light")' \
+        services/MaterialThemeLoader.qml
+      sed -i '/const paletteType = Config.options?.appearance?.palette?.type ?? "auto"/a\            const paletteMode = Config.options?.appearance?.palette?.mode ?? "dark"' \
+        services/ThemeService.qml
+      sed -i '/command.push("--type", paletteType)/a\            if (paletteMode === "dark" || paletteMode === "light")\n                command.push("--mode", paletteMode)' \
+        services/ThemeService.qml
+      sed -i 's#"/usr/bin/gsettings"#"gsettings"#g' \
+        services/IconThemeService.qml
+      sed -i '/''${font_name:+fixed=/iTerminalApplication=kitty -1' \
+        scripts/colors/apply-gtk-theme.sh
     '';
 
     postInstall = (oldAttrs.postInstall or "") + ''
