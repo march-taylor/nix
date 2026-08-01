@@ -234,15 +234,6 @@ in
     fi
   '';
 
-  home.activation.configureDolphinTerminal = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 \
-      --file kdeglobals --group General --key TerminalApplication 'kitty -1'
-    ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 \
-      --file kdeglobals --group General --key TerminalService --delete
-    ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 \
-      --file kservicemenurc --group Show --key runInKonsole true
-  '';
-
   programs.bash.enable = true;
   programs.fish.enable = true;
 

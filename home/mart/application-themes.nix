@@ -32,18 +32,16 @@ in
   home.activation.configureSharedQtApplicationThemes =
     lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       prism_cfg="${config.home.homeDirectory}/.local/share/PrismLauncher/prismlauncher.cfg"
-      ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname "$prism_cfg")"
-      ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 \
-        --file "$prism_cfg" \
-        --group General \
-        --key ApplicationTheme \
-        system
+      if [ -f "$prism_cfg" ]; then
+        ${pkgs.gnused}/bin/sed -i \
+          's/^ApplicationTheme=.*/ApplicationTheme=system/' \
+          "$prism_cfg"
+      fi
 
-      ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 \
-        --file dolphinrc \
-        --group General \
-        --key ColorScheme \
-        --delete
+      dolphin_cfg="${config.xdg.configHome}/dolphinrc"
+      if [ -f "$dolphin_cfg" ]; then
+        ${pkgs.gnused}/bin/sed -i '/^ColorScheme=/d' "$dolphin_cfg"
+      fi
     '';
 
   systemd.user.services.throne-autostart.Service = {

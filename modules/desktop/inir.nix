@@ -135,6 +135,10 @@ EOF
   # bundled Quickshell. QML plugins are ABI-sensitive, so Kirigami and Qt must
   # come from this package set rather than from the host system's nixpkgs.
   upstreamInirRuntimePackages = upstreamInirPackage.passthru.runtimeDependencies or [ ];
+  inirQuickshell = lib.findFirst
+    (package: (package.pname or "") == "quickshell")
+    pkgs.quickshell
+    upstreamInirRuntimePackages;
   # Current nixpkgs exposes Kirigami as an empty wrapper derivation whose actual
   # QML payload lives in passthru.unwrapped. Include that payload and propagated
   # dependencies such as qqc2-desktop-style when constructing the QML runtime.
@@ -162,6 +166,8 @@ EOF
 
   inirPackage = upstreamInirPackage.overrideAttrs (oldAttrs: {
     postPatch = (oldAttrs.postPatch or "") + ''
+      bash ${./customize-inir-runtime.sh} ${pkgs.python3}/bin/python3
+
       sed -i '1c\#!${pkgs.python3}/bin/python3' \
         scripts/hyprland/get_keybinds.py \
         scripts/colors/generate_colors_material.py
@@ -191,6 +197,27 @@ EOF
         [ -f "$root_file" ] || continue
         install -Dm644 "$root_file" "$runtime/$(basename "$root_file")"
       done
+
+      mv "$runtime/scripts/inir" "$runtime/scripts/.inir-launcher"
+      cat > "$runtime/scripts/inir" <<EOF
+#!${pkgs.bash}/bin/bash
+export PATH="${inirQuickshell}/bin:\$PATH"
+
+if [ "\''${1:-}" = "settings" ] || [ "\''${1:-}" = "open" ]; then
+  exec ${inirQuickshell}/bin/qs -p "$runtime" ipc call settings open
+fi
+
+case "\''${1:-}" in
+  run|start|restart|repair|settings-window|waffle-settings-window|welcome|test-local)
+    export QML_IMPORT_PATH="$runtime/qml:${inirQmlPath}"
+    export QML2_IMPORT_PATH="$runtime/qml:${inirQmlPath}"
+    export QT_PLUGIN_PATH="${inirQtPluginPath}"
+    ;;
+esac
+
+exec "$runtime/scripts/.inir-launcher" "\$@"
+EOF
+      chmod +x "$runtime/scripts/inir" "$runtime/scripts/.inir-launcher"
 
       # Apply the same /usr/bin portability rewrite that upstream applies to
       # QML files copied earlier in its installPhase.

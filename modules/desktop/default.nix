@@ -24,7 +24,7 @@ let
 in
 {
   imports = [
-    ./niri.nix
+    ./inir.nix
     ./inir-runtime.nix
   ];
 
@@ -76,6 +76,7 @@ in
         "gtk"
       ];
       "org.freedesktop.impl.portal.FileChooser" = "kde";
+      "org.freedesktop.impl.portal.Settings" = "kde";
     };
   };
 

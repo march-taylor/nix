@@ -16,7 +16,6 @@ let
     ++ [ "/run/current-system/sw/lib/qt-6/plugins" ]
   );
 
-  inirColorScheme = "${config.xdg.dataHome}/color-schemes/Darkly.colors";
 in
 {
   # plasma-integration is the Qt platform plugin that reads iNiR's live
@@ -52,9 +51,8 @@ in
   };
 
   # Older generations and manual experiments may have left qtct configuration
-  # as a symlink into /nix/store. iNiR must be able to replace these files every
-  # time its wallpaper palette changes. Convert stale links to normal writable
-  # files and seed the exact contract used by apply-gtk-theme.sh.
+  # as a symlink into /nix/store. iNiR owns their contents, so keep only the
+  # files writable and let its palette generator update them.
   home.activation.prepareMutableQtctPalettes = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
     for relative in qt5ct/qt5ct.conf qt6ct/qt6ct.conf; do
       file="${config.xdg.configHome}/$relative"
@@ -67,17 +65,9 @@ in
           || ${pkgs.coreutils}/bin/touch "$tmp"
         ${pkgs.coreutils}/bin/rm -f "$file"
         ${pkgs.coreutils}/bin/mv "$tmp" "$file"
-      elif [ ! -e "$file" ]; then
-        ${pkgs.coreutils}/bin/touch "$file"
       fi
 
-      ${pkgs.coreutils}/bin/chmod u+w "$file"
-      ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 \
-        --file "$file" --group Appearance --key color_scheme_path "${inirColorScheme}"
-      ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 \
-        --file "$file" --group Appearance --key custom_palette true
-      ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 \
-        --file "$file" --group Appearance --key style Darkly
+      [ -e "$file" ] && ${pkgs.coreutils}/bin/chmod u+w "$file"
     done
   '';
 }

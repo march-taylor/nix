@@ -113,7 +113,7 @@ in
     };
 
     spawn-at-startup = [
-      { sh = "gsettings set org.gnome.desktop.interface color-scheme prefer-dark || true; gsettings set org.gnome.desktop.interface gtk-theme adw-gtk3-dark || true; gsettings set org.gnome.desktop.interface icon-theme WhiteSur-dark || true; systemctl --user import-environment XDG_MENU_PREFIX && kbuildsycoca6 --noincremental"; }
+      { sh = "gsettings set org.gnome.desktop.interface color-scheme prefer-dark || true; gsettings set org.gnome.desktop.interface gtk-theme adw-gtk3-dark || true; gsettings set org.gnome.desktop.interface icon-theme WhiteSur-dark || true; systemctl --user import-environment QT_PLUGIN_PATH QT_QPA_PLATFORM QT_QPA_PLATFORMTHEME QT_STYLE_OVERRIDE XDG_CURRENT_DESKTOP XDG_MENU_PREFIX && kbuildsycoca6 --noincremental"; }
       { argv = [ "wl-paste" "--type" "text" "--watch" "cliphist" "store" ]; }
       { argv = [ "wl-paste" "--type" "image" "--watch" "cliphist" "store" ]; }
       { argv = [ "zen-browser" ]; }
@@ -223,6 +223,16 @@ in
       {
         matches = [ { app-id = "^org\\.prismlauncher\\.PrismLauncher$"; } ];
         open-on-workspace = "7";
+      }
+      {
+        matches = [
+          {
+            app-id = "^org\\.quickshell$";
+            title = "^Settings — iNiR$";
+          }
+        ];
+        open-floating = true;
+        open-focused = true;
       }
       {
         matches = [

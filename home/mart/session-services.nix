@@ -44,11 +44,8 @@ let
     # unavailable. iNiR will apply targets itself after color generation.
     [ -n "$ready" ] || exit 0
 
-    exec ${pkgs.coreutils}/bin/env \
-      INIR_RUNTIME_DIR=${lib.escapeShellArg inirRuntime} \
-      INIR_SYSTEM_RUNTIME_DIR=${lib.escapeShellArg inirRuntime} \
-      INIR_FALLBACK_SYSTEM_RUNTIME_DIR=${lib.escapeShellArg inirRuntime} \
-      ${inirPackage}/bin/inir theme apply all
+    exec ${pkgs.bash}/bin/bash \
+      ${lib.escapeShellArg "${inirRuntime}/scripts/colors/apply-gtk-theme.sh"}
   '';
 in
 {
@@ -56,7 +53,7 @@ in
   # has been applied. Starting them directly in Niri races the theme generator
   # on every login and leaves long-running applications with the default theme.
   programs.niri.settings.spawn-at-startup = lib.mkForce [
-    { sh = "gsettings set org.gnome.desktop.interface color-scheme prefer-dark || true; gsettings set org.gnome.desktop.interface gtk-theme adw-gtk3-dark || true; gsettings set org.gnome.desktop.interface icon-theme WhiteSur-dark || true; systemctl --user import-environment XDG_MENU_PREFIX && kbuildsycoca6 --noincremental"; }
+    { sh = "gsettings set org.gnome.desktop.interface color-scheme prefer-dark || true; gsettings set org.gnome.desktop.interface gtk-theme adw-gtk3-dark || true; gsettings set org.gnome.desktop.interface icon-theme WhiteSur-dark || true; systemctl --user import-environment QT_PLUGIN_PATH QT_QPA_PLATFORM QT_QPA_PLATFORMTHEME QT_STYLE_OVERRIDE XDG_CURRENT_DESKTOP XDG_MENU_PREFIX && kbuildsycoca6 --noincremental"; }
     { argv = [ "wl-paste" "--type" "text" "--watch" "cliphist" "store" ]; }
     { argv = [ "wl-paste" "--type" "image" "--watch" "cliphist" "store" ]; }
     { argv = [ "steam" ]; }
@@ -73,7 +70,6 @@ in
         Requires = [ "inir.service" ];
         After = [ "inir.service" ];
         Before = [
-          "zen-autostart.service"
           "throne-autostart.service"
         ];
         PartOf = [ "inir.service" ];
@@ -82,21 +78,6 @@ in
         Type = "oneshot";
         RemainAfterExit = true;
         ExecStart = applyInirTheme;
-      };
-      Install.WantedBy = [ "niri.service" ];
-    };
-
-    zen-autostart = {
-      Unit = {
-        Description = "Start Zen Browser in the Niri session";
-        Wants = [ "inir-theme-apply.service" ];
-        After = [ "inir-theme-apply.service" ];
-        PartOf = [ "graphical-session.target" ];
-      };
-      Service = {
-        ExecStart = "${config.home.profileDirectory}/bin/zen-browser";
-        Restart = "on-failure";
-        RestartSec = 3;
       };
       Install.WantedBy = [ "niri.service" ];
     };

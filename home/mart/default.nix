@@ -10,6 +10,7 @@
     ./kitty.nix
     ./session-services.nix
     ./application-themes.nix
+    ./audio.nix
     ./no-network-tray.nix
   ];
 

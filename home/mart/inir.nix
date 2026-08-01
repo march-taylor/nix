@@ -27,6 +27,11 @@ let
 
   inirPackage = osConfig.programs.inir.package;
   inirRuntime = "${inirPackage}/share/quickshell/inir";
+  inirRuntimeDependencies = inirPackage.passthru.runtimeDependencies or [ ];
+  inirQuickshell = lib.findFirst
+    (package: (package.pname or "") == "quickshell")
+    pkgs.quickshell
+    inirRuntimeDependencies;
   inirCli = pkgs.writeShellApplication {
     name = "inir";
     runtimeInputs = [ pkgs.systemd ];
@@ -35,6 +40,10 @@ let
       export INIR_RUNTIME_DIR="$runtime"
       export INIR_SYSTEM_RUNTIME_DIR="$runtime"
       export INIR_FALLBACK_SYSTEM_RUNTIME_DIR="$runtime"
+
+      if [ "''${1:-}" = "settings" ]; then
+        exec ${inirQuickshell}/bin/qs -p "$runtime" ipc call settings open
+      fi
 
       exec ${inirPackage}/bin/inir "$@"
     '';
