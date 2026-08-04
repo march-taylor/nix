@@ -309,6 +309,10 @@ in
 {
   programs.niri.enable = true;
 
+  # iNiR provides the session's Polkit interface.  niri-flake otherwise starts
+  # a separate KDE agent, which takes precedence over the shell dialog.
+  systemd.user.services.niri-flake-polkit.enable = false;
+
   # Official upstream NixOS integration: package, user unit and
   # niri.service.wants/inir.service compositor wiring.
   programs.inir = {

@@ -5,6 +5,8 @@
 }:
 {
   imports = [
+    ./apps-directory.nix
+    ./certificates.nix
     ./throne-compat.nix
     ./kokoro.nix
   ];
@@ -15,8 +17,12 @@
     enable = true;
     checkReversePath = "loose";
 
-    # Minecraft server.
-    allowedTCPPorts = [ 25565 ];
+    allowedTCPPorts = [
+      # Minecraft server.
+      25565
+      # ComfyUI remote interface.
+      8188
+    ];
 
     # Simple Voice Chat and Webcam mod use separate UDP sockets.
     allowedUDPPorts = [

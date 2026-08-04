@@ -50,14 +50,11 @@ in
 
     aseprite
     krita
+    # inkscape
     kdePackages.kdenlive
     element-desktop
     reaper
-    codex
-    uv
 
-    # nodejs provides both `node` and `npm`.
-    nodejs
     osu-lazer-bin
     obsidian
     anki-bin
@@ -90,15 +87,14 @@ in
 
     btop
     fastfetch
-    ripgrep
-    fd
-    jq
+    tree
     unzip
     zip
     p7zip
     ffmpeg
     imagemagick
     yt-dlp
+    gotop
 
     adw-gtk3
     whitesur-icon-theme
@@ -115,6 +111,7 @@ in
       init.defaultBranch = "main";
       pull.rebase = false;
       fetch.prune = true;
+      credential.helper = "store";
     };
   };
 

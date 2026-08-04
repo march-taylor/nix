@@ -28,6 +28,14 @@
   services.fwupd.enable = true;
   services.upower.enable = true;
   services.power-profiles-daemon.enable = true;
+  services.ollama = {
+    enable = true;
+    package = pkgs.ollama-rocm;
+  };
+  services.hardware.openrgb = {
+    enable = true;
+    motherboard = "amd";
+  };
 
   # Some Gigabyte firmware exposes GPP0 as an always-firing ACPI wake source.
   # /proc/acpi/wakeup uses toggle semantics, so only write when it is enabled.

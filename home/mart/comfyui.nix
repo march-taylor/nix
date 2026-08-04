@@ -25,7 +25,7 @@ let
       export LD_LIBRARY_PATH="${lib.makeLibraryPath runtimeLibraries}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
       cd /srv/apps/ComfyUI
-      exec uv run main.py --enable-manager "$@"
+      exec uv run main.py --enable-manager --listen 0.0.0.0 --port 8188 "$@"
     '';
   };
 in

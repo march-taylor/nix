@@ -2,6 +2,8 @@
 {
   imports = [
     ./programs.nix
+    ./development.nix
+    ./comfyui.nix
     ./discord.nix
     ./niri.nix
     ./niri-rules.nix

@@ -24,6 +24,7 @@ let
 in
 {
   imports = [
+    ./askpass.nix
     ./inir.nix
     ./inir-runtime.nix
   ];
